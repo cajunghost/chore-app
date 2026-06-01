@@ -272,6 +272,7 @@ body[data-role="onboarding"] .app-footer { display: none; }
 .onboard-form { display: flex; flex-direction: column; gap: 14px; text-align: left; margin-top: 6px; }
 .onboard-form .field { flex: none; }
 .onboard-form .lock-form { gap: 8px; }
+.form-error { color: var(--danger); font-size: 13px; font-weight: 700; margin: -4px 0 0; }
 
 /* ---------- Lock / sign-in screen ---------- */
 .lock-screen {

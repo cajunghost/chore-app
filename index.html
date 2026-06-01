@@ -63,7 +63,7 @@
       <div class="lock-logo">👋</div>
       <h2>Welcome to ChoreQuest</h2>
       <p class="muted">Set up the parent account first. You'll use your passkey to manage chores; afterwards each child gets their own passkey to sign in on this device.</p>
-      <form id="onboard-form" class="onboard-form">
+      <form id="onboard-form" class="onboard-form" novalidate>
         <div class="field">
           <label for="onboard-name">Your name</label>
           <input id="onboard-name" type="text" placeholder="e.g. Mom, Dad, Alex" maxlength="24" required />
@@ -79,6 +79,7 @@
             <input id="onboard-pass2" type="password" inputmode="numeric" placeholder="Confirm passkey" autocomplete="off" minlength="4" maxlength="32" required />
           </div>
         </div>
+        <p id="onboard-error" class="form-error" hidden></p>
         <button class="btn primary" type="submit" style="width:100%;">Create parent profile</button>
       </form>
       <button class="btn ghost" id="onboard-skip" style="margin-top:10px;">Skip &amp; explore without a passkey</button>

@@ -115,8 +115,19 @@ function load() {
   }
 }
 
+let storageWarned = false;
 function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    // private/incognito mode or storage disabled — keep the app usable for this
+    // session instead of throwing (which would otherwise trap the current action)
+    console.warn("Could not persist data to localStorage.", e);
+    if (!storageWarned) {
+      storageWarned = true;
+      toast("⚠️ Can't save on this device (private mode?). The app still works, but changes won't persist.");
+    }
+  }
 }
 
 function uid() {
@@ -184,7 +195,10 @@ function loadSession() {
     return { role: null, childId: null };
   }
 }
-function saveSession() { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); }
+function saveSession() {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); }
+  catch (e) { console.warn("Could not persist session.", e); }
+}
 
 /* With no parent passkey set, the app is fully open (acts as parent).
    Once a passkey exists, you must sign in as parent or child. */
@@ -375,14 +389,22 @@ function renderOnboarding() {
   });
 }
 
+function setOnboardError(msg, focusId) {
+  const el = document.getElementById("onboard-error");
+  el.textContent = msg || "";
+  el.hidden = !msg;
+  if (focusId) { const f = document.getElementById(focusId); if (f) f.focus(); }
+}
+
 document.getElementById("onboard-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const name = document.getElementById("onboard-name").value.trim();
   const p1 = document.getElementById("onboard-pass").value;
   const p2 = document.getElementById("onboard-pass2").value;
-  if (!name) { toast("Please enter your name"); return; }
-  if (p1.length < 4) { toast("Passkey must be at least 4 characters"); return; }
-  if (p1 !== p2) { toast("Passkeys don't match"); return; }
+  if (!name) { setOnboardError("Please enter your name.", "onboard-name"); return; }
+  if (p1.length < 4) { setOnboardError("Passkey must be at least 4 characters.", "onboard-pass"); return; }
+  if (p1 !== p2) { setOnboardError("The two passkeys don't match — please re-enter them.", "onboard-pass2"); return; }
+  setOnboardError("");
   state.parent = { name, avatar: onboardAvatar, pass: hashPass(p1) };
   state.onboarded = true;
   session = { role: "parent", childId: null };
@@ -391,6 +413,8 @@ document.getElementById("onboard-form").addEventListener("submit", (e) => {
   toast(`Welcome, ${name}! 👋 Now add your kids and give each a passkey.`);
   refresh();
 });
+
+document.getElementById("onboard-form").addEventListener("input", () => setOnboardError(""));
 
 document.getElementById("onboard-skip").addEventListener("click", () => {
   state.onboarded = true; // explore in open mode; a passkey can be set later in the portal
