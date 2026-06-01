@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChoreQuest — Family Chore Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-logo">🏆</span>
+      <div>
+        <h1>ChoreQuest</h1>
+        <p class="tagline">Turn chores into a game — all data stays on this device</p>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="kids">👧 Kids</button>
+      <button class="tab" data-view="chores">🧹 Chores</button>
+      <button class="tab" data-view="assign">📋 Assignments</button>
+      <button class="tab" data-view="scoreboard">📊 Scoreboard</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- ========================= KIDS ========================= -->
+    <section class="view active" id="view-kids">
+      <div class="section-head">
+        <h2>Family Profiles</h2>
+        <p class="muted">Add each child to their own local profile. Nothing leaves this device.</p>
+      </div>
+
+      <form id="kid-form" class="card add-form">
+        <div class="field">
+          <label for="kid-name">Child's name</label>
+          <input id="kid-name" type="text" placeholder="e.g. Ava" maxlength="24" required />
+        </div>
+        <div class="field avatar-field">
+          <label>Pick an avatar</label>
+          <div class="avatar-picker" id="avatar-picker"></div>
+        </div>
+        <button class="btn primary" type="submit">+ Add Child</button>
+      </form>
+
+      <div id="kids-list" class="grid"></div>
+    </section>
+
+    <!-- ========================= CHORES ========================= -->
+    <section class="view" id="view-chores">
+      <div class="section-head">
+        <h2>Chore Library</h2>
+        <p class="muted">Start from the pre-loaded chores or add your own custom ones.</p>
+      </div>
+
+      <form id="chore-form" class="card add-form">
+        <div class="field">
+          <label for="chore-name">Chore name</label>
+          <input id="chore-name" type="text" placeholder="e.g. Water the plants" maxlength="40" required />
+        </div>
+        <div class="field small">
+          <label for="chore-points">Points</label>
+          <input id="chore-points" type="number" min="1" max="500" value="10" required />
+        </div>
+        <div class="field">
+          <label for="chore-category">Category</label>
+          <select id="chore-category">
+            <option>Bedroom</option>
+            <option>Kitchen</option>
+            <option>Bathroom</option>
+            <option>Outdoor</option>
+            <option>Pets</option>
+            <option>Laundry</option>
+            <option>School</option>
+            <option>General</option>
+          </select>
+        </div>
+        <button class="btn primary" type="submit">+ Add Chore</button>
+      </form>
+
+      <div class="filter-bar">
+        <input id="chore-search" type="search" placeholder="Search chores…" />
+        <div class="legend"><span class="dot custom"></span> Custom <span class="dot preset"></span> Preset</div>
+      </div>
+      <div id="chores-list" class="chore-grid"></div>
+    </section>
+
+    <!-- ========================= ASSIGNMENTS ========================= -->
+    <section class="view" id="view-assign">
+      <div class="section-head">
+        <h2>Assign &amp; Complete</h2>
+        <p class="muted">Assign chores to a child, then check them off to earn points.</p>
+      </div>
+
+      <form id="assign-form" class="card add-form">
+        <div class="field">
+          <label for="assign-kid">Who?</label>
+          <select id="assign-kid" required></select>
+        </div>
+        <div class="field">
+          <label for="assign-chore">Which chore?</label>
+          <select id="assign-chore" required></select>
+        </div>
+        <button class="btn primary" type="submit">Assign</button>
+      </form>
+
+      <div id="assign-board" class="assign-board"></div>
+    </section>
+
+    <!-- ========================= SCOREBOARD ========================= -->
+    <section class="view" id="view-scoreboard">
+      <div class="section-head">
+        <h2>Live Scoreboard</h2>
+        <p class="muted">Points, badges, and milestone progress update in real time.</p>
+      </div>
+
+      <div class="stat-row" id="stat-row"></div>
+
+      <div class="card chart-card">
+        <h3>Points by Child</h3>
+        <canvas id="score-chart" height="260"></canvas>
+      </div>
+
+      <div class="scoreboard-grid" id="scoreboard-grid"></div>
+    </section>
+  </main>
+
+  <!-- Toast / celebration -->
+  <div id="toast" class="toast"></div>
+
+  <footer class="app-footer">
+    <span>ChoreQuest · 100% local · your family's data never leaves this browser</span>
+    <button class="btn ghost danger" id="reset-btn">Reset all data</button>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
