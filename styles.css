@@ -17,6 +17,12 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute must always win, even on elements that also carry a
+   class with `display: flex` (e.g. .lock-screen / .lock-form). Without this,
+   an author `display` rule overrides the UA `[hidden]{display:none}` and the
+   overlay never disappears when toggled off. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: linear-gradient(160deg, #eef2ff 0%, #faf5ff 50%, #ecfeff 100%);
