@@ -278,11 +278,13 @@ body[data-role="onboarding"] .app-footer { display: none; }
 .lock-screen {
   position: fixed; inset: 0; z-index: 100;
   background: linear-gradient(160deg, #4f46e5 0%, #8b5cf6 60%, #ec4899 100%);
-  display: grid; place-items: center; padding: 20px; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 .lock-card {
   background: #fff; border-radius: 20px; padding: 28px; width: min(420px, 100%);
   box-shadow: 0 24px 60px rgba(0,0,0,0.3); text-align: center;
+  margin: auto; /* centers when there's room, stays fully scrollable when not */
 }
 .lock-logo { font-size: 46px; }
 .lock-card h2 { margin: 8px 0 4px; }
@@ -347,4 +349,12 @@ body[data-role="onboarding"] .app-footer { display: none; }
   .brand h1 { font-size: 22px; }
   .add-form { flex-direction: column; align-items: stretch; }
   .field, .field.small { min-width: 0; flex: 1; }
+  /* keep the setup/sign-in card compact so the action button stays reachable */
+  .lock-screen { padding: 12px; }
+  .lock-card { padding: 18px; }
+  .lock-logo { font-size: 36px; }
+  .lock-card h2 { font-size: 20px; }
+  .avatar-opt { width: 38px; height: 38px; font-size: 20px; }
+  .lock-form { flex-direction: column; }
+  .lock-form input { width: 100%; }
 }
