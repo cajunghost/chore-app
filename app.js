@@ -6,6 +6,7 @@
 
 const STORAGE_KEY = "chorequest.v1";
 const AVATARS = ["🦄", "🐯", "🐱", "🐶", "🦊", "🐸", "🐵", "🐼", "🦁", "🐲", "🦖", "🚀", "⚽", "🎸", "🌟", "🦋"];
+const PARENT_AVATARS = ["👩", "👨", "🧑", "👩‍🦰", "👨‍🦱", "👵", "👴", "🦸‍♀️", "🦸‍♂️", "👩‍🍳", "👨‍🍳", "🐻", "🦉", "👑", "🌟", "💪"];
 
 /* ---- Pre-canned chore library ---- */
 const PRESET_CHORES = [
@@ -79,7 +80,8 @@ function blankState() {
     redemptions: [], // { id, childId, childName, rewardName, icon, cost, at }
     bonusTasks: [], // { id, name, points, category, repeatable, done }
     bonusLog: [], // { id, taskId, name, points, childId, childName, at }
-    parentPass: null, // soft hash of the parent passkey, or null when unset
+    parent: { name: "", avatar: PARENT_AVATARS[0], pass: null }, // parent profile + soft passkey hash
+    onboarded: false, // has the parent completed (or skipped) first-run setup?
   };
 }
 
@@ -95,7 +97,13 @@ function load() {
     if (!parsed.redemptions) parsed.redemptions = [];
     if (!parsed.bonusTasks) parsed.bonusTasks = [];
     if (!parsed.bonusLog) parsed.bonusLog = [];
-    if (!("parentPass" in parsed)) parsed.parentPass = null;
+    // migrate the bare parentPass into a full parent profile
+    if (!parsed.parent) {
+      parsed.parent = { name: "", avatar: PARENT_AVATARS[0], pass: parsed.parentPass || null };
+    }
+    delete parsed.parentPass;
+    // existing installs are treated as already onboarded so they aren't walled
+    if (!("onboarded" in parsed)) parsed.onboarded = true;
     parsed.children.forEach((k) => {
       if (typeof k.spent !== "number") k.spent = 0;
       if (!("pass" in k)) k.pass = null; // soft hash of this child's passkey
@@ -181,14 +189,14 @@ function saveSession() { sessionStorage.setItem(SESSION_KEY, JSON.stringify(sess
 /* With no parent passkey set, the app is fully open (acts as parent).
    Once a passkey exists, you must sign in as parent or child. */
 function effectiveRole() {
-  if (!state.parentPass) return "parent";
+  if (!state.parent.pass) return "parent";
   if (session.role === "parent") return "parent";
   if (session.role === "child" && getKid(session.childId)) return "child";
   return "locked";
 }
 
 function signInParent(raw) {
-  if (checkPass(raw, state.parentPass)) {
+  if (checkPass(raw, state.parent.pass)) {
     session = { role: "parent", childId: null };
     saveSession();
     toast("Welcome back! 👋");
@@ -220,7 +228,7 @@ function signOut() {
 }
 
 function lockApp() {
-  if (!state.parentPass) {
+  if (!state.parent.pass) {
     toast("Set a parent passkey first");
     selectView("portal");
     return;
@@ -251,9 +259,21 @@ function ensureAllowedView(role) {
 }
 
 function applyRole() {
+  const onboard = document.getElementById("onboard-screen");
+  const lock = document.getElementById("lock-screen");
+
+  // First-run: parent must create their profile + passkey (or skip) before anything else
+  if (!state.onboarded) {
+    document.body.dataset.role = "onboarding";
+    renderOnboarding();
+    onboard.hidden = false;
+    lock.hidden = true;
+    return;
+  }
+  onboard.hidden = true;
+
   const role = effectiveRole();
   document.body.dataset.role = role;
-  const lock = document.getElementById("lock-screen");
   if (role === "locked") {
     renderLockScreen();
     lock.hidden = false;
@@ -282,9 +302,10 @@ function renderSessionBar(role) {
       <span class="sb-note">${balanceOf(k)} pts to spend · Level ${levelFor(k.points)}</span>
       <button class="sb-btn" id="signout-btn">Sign out</button>`;
     bar.querySelector("#signout-btn").addEventListener("click", signOut);
-  } else if (state.parentPass) {
+  } else if (state.parent.pass) {
+    const pname = state.parent.name ? escapeHtml(state.parent.name) : "Parent";
     bar.innerHTML = `
-      <span class="who">👨‍👩‍👧 Parent</span>
+      <span class="who">${state.parent.avatar || "👨‍👩‍👧"} ${pname}</span>
       <button class="sb-btn" id="lockbar-btn">🔒 Lock</button>`;
     bar.querySelector("#lockbar-btn").addEventListener("click", lockApp);
   } else {
@@ -294,6 +315,9 @@ function renderSessionBar(role) {
 
 /* ---- Lock screen ---- */
 function renderLockScreen() {
+  const pIn = document.getElementById("parent-pass-input");
+  pIn.placeholder = state.parent.name ? `${state.parent.name}'s passkey` : "Parent passkey";
+
   const listEl = document.getElementById("kid-signin-list");
   const hint = document.getElementById("kid-signin-hint");
   const form = document.getElementById("kid-signin-form");
@@ -340,21 +364,62 @@ document.getElementById("kid-signin-form").addEventListener("submit", (e) => {
 });
 
 /* ============================================================
+   FIRST-RUN ONBOARDING (parent profile + passkey)
+   ============================================================ */
+let onboardAvatar = PARENT_AVATARS[0];
+
+function renderOnboarding() {
+  buildAvatarPicker(document.getElementById("parent-avatar-picker"), PARENT_AVATARS, onboardAvatar, (a) => {
+    onboardAvatar = a;
+    renderOnboarding();
+  });
+}
+
+document.getElementById("onboard-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = document.getElementById("onboard-name").value.trim();
+  const p1 = document.getElementById("onboard-pass").value;
+  const p2 = document.getElementById("onboard-pass2").value;
+  if (!name) { toast("Please enter your name"); return; }
+  if (p1.length < 4) { toast("Passkey must be at least 4 characters"); return; }
+  if (p1 !== p2) { toast("Passkeys don't match"); return; }
+  state.parent = { name, avatar: onboardAvatar, pass: hashPass(p1) };
+  state.onboarded = true;
+  session = { role: "parent", childId: null };
+  saveSession();
+  save();
+  toast(`Welcome, ${name}! 👋 Now add your kids and give each a passkey.`);
+  refresh();
+});
+
+document.getElementById("onboard-skip").addEventListener("click", () => {
+  state.onboarded = true; // explore in open mode; a passkey can be set later in the portal
+  save();
+  toast("You can set a parent passkey anytime in 🔐 Parent Portal.");
+  refresh();
+});
+
+/* ============================================================
    KIDS
    ============================================================ */
-function renderAvatarPicker() {
-  const wrap = document.getElementById("avatar-picker");
+/* Reusable avatar grid: renders `list` into `wrap`, marks `selected`,
+   and calls `onPick(avatar)` when one is chosen. */
+function buildAvatarPicker(wrap, list, selected, onPick) {
   wrap.innerHTML = "";
-  AVATARS.forEach((a) => {
+  list.forEach((a) => {
     const b = document.createElement("button");
     b.type = "button";
-    b.className = "avatar-opt" + (a === pickedAvatar ? " selected" : "");
+    b.className = "avatar-opt" + (a === selected ? " selected" : "");
     b.textContent = a;
-    b.addEventListener("click", () => {
-      pickedAvatar = a;
-      renderAvatarPicker();
-    });
+    b.addEventListener("click", () => onPick(a));
     wrap.appendChild(b);
+  });
+}
+
+function renderAvatarPicker() {
+  buildAvatarPicker(document.getElementById("avatar-picker"), AVATARS, pickedAvatar, (a) => {
+    pickedAvatar = a;
+    renderAvatarPicker();
   });
 }
 
@@ -867,7 +932,7 @@ document.getElementById("parent-pass-form").addEventListener("submit", (e) => {
   const inp = document.getElementById("parent-pass-new");
   const val = inp.value.trim();
   if (val.length < 4) { toast("Passkey must be at least 4 characters"); return; }
-  state.parentPass = hashPass(val);
+  state.parent.pass = hashPass(val);
   inp.value = "";
   // setting a passkey signs the current device in as parent
   session = { role: "parent", childId: null };
@@ -878,9 +943,9 @@ document.getElementById("parent-pass-form").addEventListener("submit", (e) => {
 });
 
 document.getElementById("parent-pass-clear").addEventListener("click", () => {
-  if (!state.parentPass) { toast("No passkey set"); return; }
+  if (!state.parent.pass) { toast("No passkey set"); return; }
   if (!confirm("Remove the parent passkey? The app will no longer lock and child sign-in will be disabled.")) return;
-  state.parentPass = null;
+  state.parent.pass = null;
   save();
   toast("Parent passkey removed");
   refresh();
@@ -888,9 +953,28 @@ document.getElementById("parent-pass-clear").addEventListener("click", () => {
 
 document.getElementById("lock-now-btn").addEventListener("click", lockApp);
 
+let portalParentAvatar = null;
+document.getElementById("portal-parent-save").addEventListener("click", () => {
+  const name = document.getElementById("portal-parent-name").value.trim();
+  if (!name) { toast("Please enter a name"); return; }
+  state.parent.name = name;
+  if (portalParentAvatar) state.parent.avatar = portalParentAvatar;
+  save();
+  toast("Parent profile saved");
+  refresh();
+});
+
 function renderPortal() {
+  // parent profile editor
+  if (portalParentAvatar === null) portalParentAvatar = state.parent.avatar || PARENT_AVATARS[0];
+  const avWrap = document.getElementById("portal-parent-avatar");
+  const pick = (a) => { portalParentAvatar = a; buildAvatarPicker(avWrap, PARENT_AVATARS, a, pick); };
+  buildAvatarPicker(avWrap, PARENT_AVATARS, portalParentAvatar, pick);
+  const nameInput = document.getElementById("portal-parent-name");
+  if (document.activeElement !== nameInput) nameInput.value = state.parent.name || "";
+
   const status = document.getElementById("parent-pass-status");
-  status.textContent = state.parentPass
+  status.textContent = state.parent.pass
     ? "A parent passkey is set. The app locks when you choose Lock or reopen it."
     : "No parent passkey yet. Set one to lock parent controls and enable child sign-in.";
 
@@ -1210,6 +1294,10 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   sessionStorage.removeItem(SESSION_KEY);
   state = blankState();
   session = { role: null, childId: null };
+  lockPickedChild = null;
+  onboardAvatar = PARENT_AVATARS[0];
+  portalParentAvatar = null;
+  pickedAvatar = AVATARS[0];
   save();
   toast("All data reset.");
   refresh();

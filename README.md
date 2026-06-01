@@ -29,13 +29,18 @@ badges, and milestone rewards on a live scoreboard.
 - **Bonus tasks** — parents post *unassigned* extra jobs (one-time or
   repeatable) on a Bonus board, separate from assigned chores. Any child can
   claim them for bonus points; a log tracks who completed what.
-- **Parent Portal + passkeys** — set a **parent passkey** to lock the parent-only
-  tabs (Kids, Chores, Assignments, Bonus, Store, Portal), and give each child
-  their own passkey. On the shared family device, a child signs in to a focused
-  **“My Tasks”** view showing their chores, the bonus board, their stats, and
-  badges — and can check off work to earn points. *(This is a soft lock for a
-  shared device, not cryptographic security; passkeys are stored only as a
-  non-reversible local hash and never leave the browser.)*
+- **First-run parent setup** — on a fresh device the app opens a welcome screen
+  where the parent creates their **profile** (name + avatar) and a **parent
+  passkey** before anything else. (You can skip to explore, then set it up later
+  in the Parent Portal.)
+- **Parent Portal + passkeys** — edit the parent profile, manage the parent
+  passkey (which locks the parent-only tabs: Kids, Chores, Assignments, Bonus,
+  Store, Portal), and give each child their own passkey. On the shared family
+  device, a child signs in with their token to a focused **“My Tasks”** view
+  showing their chores, the bonus board, their stats, and badges — and can check
+  off work to earn points. *(This is a soft lock for a shared device, not
+  cryptographic security; passkeys are stored only as a non-reversible local
+  hash and never leave the browser.)*
 - **Live scoreboard** — summary stats, a ranked leaderboard, and a custom-drawn
   bar chart of points by child that updates in real time.
 

@@ -262,7 +262,16 @@ body[data-role="child"] .tab[data-role="parent"] { display: none; }
 body[data-role="locked"] .container,
 body[data-role="locked"] #tabs,
 body[data-role="locked"] .session-bar,
-body[data-role="locked"] .app-footer { display: none; }
+body[data-role="locked"] .app-footer,
+body[data-role="onboarding"] .container,
+body[data-role="onboarding"] #tabs,
+body[data-role="onboarding"] .session-bar,
+body[data-role="onboarding"] .app-footer { display: none; }
+
+/* ---------- Onboarding ---------- */
+.onboard-form { display: flex; flex-direction: column; gap: 14px; text-align: left; margin-top: 6px; }
+.onboard-form .field { flex: none; }
+.onboard-form .lock-form { gap: 8px; }
 
 /* ---------- Lock / sign-in screen ---------- */
 .lock-screen {

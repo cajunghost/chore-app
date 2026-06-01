@@ -57,6 +57,34 @@
     </div>
   </div>
 
+  <!-- ========================= FIRST-RUN PARENT SETUP ========================= -->
+  <div id="onboard-screen" class="lock-screen" hidden>
+    <div class="lock-card">
+      <div class="lock-logo">👋</div>
+      <h2>Welcome to ChoreQuest</h2>
+      <p class="muted">Set up the parent account first. You'll use your passkey to manage chores; afterwards each child gets their own passkey to sign in on this device.</p>
+      <form id="onboard-form" class="onboard-form">
+        <div class="field">
+          <label for="onboard-name">Your name</label>
+          <input id="onboard-name" type="text" placeholder="e.g. Mom, Dad, Alex" maxlength="24" required />
+        </div>
+        <div class="field">
+          <label>Pick your avatar</label>
+          <div class="avatar-picker" id="parent-avatar-picker"></div>
+        </div>
+        <div class="field">
+          <label for="onboard-pass">Create a parent passkey</label>
+          <div class="lock-form">
+            <input id="onboard-pass" type="password" inputmode="numeric" placeholder="Passkey (4+ chars)" autocomplete="off" minlength="4" maxlength="32" required />
+            <input id="onboard-pass2" type="password" inputmode="numeric" placeholder="Confirm passkey" autocomplete="off" minlength="4" maxlength="32" required />
+          </div>
+        </div>
+        <button class="btn primary" type="submit" style="width:100%;">Create parent profile</button>
+      </form>
+      <button class="btn ghost" id="onboard-skip" style="margin-top:10px;">Skip &amp; explore without a passkey</button>
+    </div>
+  </div>
+
   <main class="container">
     <!-- ========================= MY TASKS (child) ========================= -->
     <section class="view" id="view-mytasks">
@@ -234,6 +262,19 @@
       </div>
 
       <div class="card portal-card">
+        <h3>Parent profile</h3>
+        <div class="field">
+          <label for="portal-parent-name">Your name</label>
+          <input id="portal-parent-name" type="text" maxlength="24" placeholder="Parent name" />
+        </div>
+        <div class="field">
+          <label>Avatar</label>
+          <div class="avatar-picker" id="portal-parent-avatar"></div>
+        </div>
+        <button class="btn primary" id="portal-parent-save">Save profile</button>
+      </div>
+
+      <div class="card portal-card" style="margin-top:16px;">
         <h3>Parent passkey</h3>
         <p class="muted" id="parent-pass-status"></p>
         <form id="parent-pass-form" class="lock-form">
