@@ -20,6 +20,12 @@ badges, and milestone rewards on a live scoreboard.
   - Levels (every 100 points)
   - Eight unlockable **badges** (first chore, point thresholds, all-rounder…)
   - Reward **milestones** with progress bars (Movie Night, Ice Cream, etc.)
+- **Reward store** — kids spend earned points on real rewards. Ships with 12
+  pre-canned rewards (video game time, pool time, extra TV/screen time, movie
+  night pick, days out…) and lets parents add custom rewards with their own
+  icon and point cost. Redeeming deducts from a child's **spendable balance**
+  while their **lifetime earned** points (and the badges/levels/milestones they
+  drive) stay intact. A redemption history shows recent spends.
 - **Live scoreboard** — summary stats, a ranked leaderboard, and a custom-drawn
   bar chart of points by child that updates in real time.
 

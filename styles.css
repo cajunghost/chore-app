@@ -168,6 +168,38 @@ input:focus, select:focus { outline: none; border-color: var(--primary); box-sha
 .task .x:hover { color: var(--danger); }
 .empty-note { color: var(--ink-soft); font-size: 13px; font-style: italic; }
 
+/* ---------- Store ---------- */
+.balance-strip { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.bal-chip {
+  display: flex; align-items: center; gap: 8px; background: var(--card);
+  border-radius: 999px; padding: 8px 14px; box-shadow: var(--shadow); font-weight: 700; font-size: 14px;
+}
+.bal-chip .av { font-size: 20px; }
+.bal-chip .amt { color: var(--good); }
+
+.reward-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.reward-item {
+  background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 10px; border-top: 5px solid var(--primary); position: relative;
+}
+.reward-item.custom { border-top-color: var(--accent); }
+.reward-item .r-top { display: flex; align-items: center; gap: 10px; }
+.reward-item .r-ico { font-size: 30px; }
+.reward-item .r-name { font-weight: 700; font-size: 15px; line-height: 1.2; }
+.reward-item .r-cost { margin-left: auto; background: #fef3c7; color: #b45309; font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.reward-item .r-redeem { display: flex; gap: 8px; }
+.reward-item .r-redeem select { flex: 1; padding: 8px 10px; font-size: 14px; }
+.reward-del {
+  position: absolute; top: 10px; right: 10px; background: #f1f5f9; border: none;
+  width: 24px; height: 24px; border-radius: 7px; cursor: pointer; color: var(--ink-soft); font-size: 12px;
+}
+.reward-del:hover { background: #fee2e2; color: var(--danger); }
+
+.redemption-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.redemption-row:last-child { border-bottom: none; }
+.redemption-row .when { margin-left: auto; color: var(--ink-soft); font-size: 12px; }
+.redemption-row .cost { color: var(--danger); font-weight: 700; }
+
 /* ---------- Scoreboard ---------- */
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
 .stat {

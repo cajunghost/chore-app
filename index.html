@@ -19,6 +19,7 @@
       <button class="tab active" data-view="kids">👧 Kids</button>
       <button class="tab" data-view="chores">🧹 Chores</button>
       <button class="tab" data-view="assign">📋 Assignments</button>
+      <button class="tab" data-view="store">🎁 Store</button>
       <button class="tab" data-view="scoreboard">📊 Scoreboard</button>
     </nav>
   </header>
@@ -105,6 +106,40 @@
       </form>
 
       <div id="assign-board" class="assign-board"></div>
+    </section>
+
+    <!-- ========================= STORE ========================= -->
+    <section class="view" id="view-store">
+      <div class="section-head">
+        <h2>Reward Store</h2>
+        <p class="muted">Kids spend earned points on real rewards. Start from the presets or add your own with a set point cost.</p>
+      </div>
+
+      <div class="balance-strip" id="balance-strip"></div>
+
+      <form id="reward-form" class="card add-form">
+        <div class="field small">
+          <label for="reward-icon">Icon</label>
+          <input id="reward-icon" type="text" placeholder="🎁" maxlength="2" value="🎁" />
+        </div>
+        <div class="field">
+          <label for="reward-name">Reward</label>
+          <input id="reward-name" type="text" placeholder="e.g. Trampoline park trip" maxlength="40" required />
+        </div>
+        <div class="field small">
+          <label for="reward-cost">Cost (pts)</label>
+          <input id="reward-cost" type="number" min="1" max="5000" value="50" required />
+        </div>
+        <button class="btn primary" type="submit">+ Add Reward</button>
+      </form>
+
+      <div class="legend" style="margin-bottom:12px;"><span class="dot custom"></span> Custom <span class="dot preset"></span> Preset</div>
+      <div id="rewards-list" class="reward-grid"></div>
+
+      <div class="section-head" style="margin-top:28px;">
+        <h3 style="margin:0;">Recent Redemptions</h3>
+      </div>
+      <div id="redemptions-list" class="card"></div>
     </section>
 
     <!-- ========================= SCOREBOARD ========================= -->

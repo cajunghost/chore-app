@@ -48,6 +48,22 @@ const MILESTONES = [
   { points: 500, label: "Big Day Out 🎢" },
 ];
 
+/* ---- Pre-canned reward store ---- */
+const PRESET_REWARDS = [
+  { icon: "📺", name: "Extra TV time (30 min)",   cost: 25 },
+  { icon: "🎮", name: "Video game time (30 min)", cost: 30 },
+  { icon: "📱", name: "Screen time (30 min)",      cost: 30 },
+  { icon: "🍦", name: "Ice cream treat",            cost: 40 },
+  { icon: "🕙", name: "Stay up 30 min late",        cost: 45 },
+  { icon: "🏊", name: "Pool time",                  cost: 50 },
+  { icon: "🎮", name: "Extra video game hour",      cost: 60 },
+  { icon: "🍕", name: "Pick what's for dinner",     cost: 70 },
+  { icon: "🎬", name: "Choose movie night film",    cost: 80 },
+  { icon: "👫", name: "Friend playdate",            cost: 100 },
+  { icon: "🧸", name: "Small toy",                  cost: 150 },
+  { icon: "🎡", name: "Big day out / theme park",   cost: 300 },
+];
+
 /* ============================================================
    State
    ============================================================ */
@@ -59,6 +75,8 @@ function blankState() {
     children: [],
     chores: PRESET_CHORES.map((c) => ({ id: uid(), custom: false, ...c })),
     assignments: [], // { id, childId, choreId, choreName, points, done, doneAt }
+    rewards: PRESET_REWARDS.map((r) => ({ id: uid(), custom: false, ...r })),
+    redemptions: [], // { id, childId, childName, rewardName, icon, cost, at }
   };
 }
 
@@ -69,6 +87,10 @@ function load() {
     const parsed = JSON.parse(raw);
     // basic shape guard
     if (!parsed.children || !parsed.chores || !parsed.assignments) return blankState();
+    // migrate older saves that predate the reward store
+    if (!parsed.rewards) parsed.rewards = PRESET_REWARDS.map((r) => ({ id: uid(), custom: false, ...r }));
+    if (!parsed.redemptions) parsed.redemptions = [];
+    parsed.children.forEach((k) => { if (typeof k.spent !== "number") k.spent = 0; });
     return parsed;
   } catch (e) {
     console.warn("Could not load saved data, starting fresh.", e);
@@ -89,6 +111,11 @@ function uid() {
    ============================================================ */
 function getKid(id) { return state.children.find((k) => k.id === id); }
 function getChore(id) { return state.chores.find((c) => c.id === id); }
+function getReward(id) { return state.rewards.find((r) => r.id === id); }
+
+/* Lifetime points (kid.points) drive badges/levels/milestones and never go
+   down when spending. The spendable balance is what's left after redemptions. */
+function balanceOf(kid) { return Math.max(0, (kid.points || 0) - (kid.spent || 0)); }
 
 function categoriesDone(kid) {
   const cats = new Set(
@@ -177,8 +204,8 @@ function renderKids() {
       <button class="remove-x" title="Remove">✕</button>
       <div class="avatar">${k.avatar}</div>
       <h3>${escapeHtml(k.name)}</h3>
-      <div class="pts">${k.points} pts</div>
-      <div class="sub">${done} chore${done === 1 ? "" : "s"} completed</div>
+      <div class="pts">${balanceOf(k)} pts to spend</div>
+      <div class="sub">${k.points} earned · ${done} chore${done === 1 ? "" : "s"} done</div>
       <span class="level-pill">Level ${levelFor(k.points)}</span>
     `;
     card.querySelector(".remove-x").addEventListener("click", () => removeKid(k.id));
@@ -379,19 +406,147 @@ function removeAssignment(id) {
 }
 
 /* ============================================================
+   STORE / REDEMPTION
+   ============================================================ */
+document.getElementById("reward-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const iconEl = document.getElementById("reward-icon");
+  const nameEl = document.getElementById("reward-name");
+  const costEl = document.getElementById("reward-cost");
+  const name = nameEl.value.trim();
+  const cost = Math.max(1, parseInt(costEl.value, 10) || 1);
+  if (!name) return;
+  const icon = iconEl.value.trim() || "🎁";
+  state.rewards.push({ id: uid(), name, cost, icon, custom: true });
+  nameEl.value = "";
+  iconEl.value = "🎁";
+  costEl.value = 50;
+  save();
+  toast(`Added reward: ${name}`);
+  renderStore();
+});
+
+function renderStore() {
+  // balance chips
+  const strip = document.getElementById("balance-strip");
+  strip.innerHTML = state.children.length
+    ? state.children
+        .map(
+          (k) =>
+            `<div class="bal-chip"><span class="av">${k.avatar}</span>${escapeHtml(k.name)}: <span class="amt">${balanceOf(k)} pts</span></div>`
+        )
+        .join("")
+    : `<p class="muted">Add children in the Kids tab to start redeeming rewards.</p>`;
+
+  // reward cards
+  const list = document.getElementById("rewards-list");
+  if (state.rewards.length === 0) {
+    list.innerHTML = emptyState("🎁", "No rewards yet", "Add a reward above to get started.");
+  } else {
+    const kidOptions = state.children
+      .map((k) => `<option value="${k.id}">${k.avatar} ${escapeHtml(k.name)}</option>`)
+      .join("");
+    list.innerHTML = "";
+    state.rewards
+      .slice()
+      .sort((a, b) => a.cost - b.cost)
+      .forEach((r) => {
+        const item = document.createElement("div");
+        item.className = "reward-item" + (r.custom ? " custom" : "");
+        item.innerHTML = `
+          ${r.custom ? '<button class="reward-del" title="Delete reward">✕</button>' : ""}
+          <div class="r-top">
+            <span class="r-ico">${escapeHtml(r.icon)}</span>
+            <span class="r-name">${escapeHtml(r.name)}</span>
+            <span class="r-cost">${r.cost} pts</span>
+          </div>
+          <div class="r-redeem">
+            ${
+              state.children.length
+                ? `<select>${kidOptions}</select><button class="btn good tiny" data-redeem>Redeem</button>`
+                : `<span class="empty-note">Add a child to redeem</span>`
+            }
+          </div>
+        `;
+        const delBtn = item.querySelector(".reward-del");
+        if (delBtn) delBtn.addEventListener("click", () => deleteReward(r.id));
+        const redeemBtn = item.querySelector("[data-redeem]");
+        if (redeemBtn) {
+          const sel = item.querySelector("select");
+          redeemBtn.addEventListener("click", () => redeem(sel.value, r.id));
+        }
+        list.appendChild(item);
+      });
+  }
+
+  // redemption history
+  const hist = document.getElementById("redemptions-list");
+  if (state.redemptions.length === 0) {
+    hist.innerHTML = `<p class="empty-note">No rewards redeemed yet.</p>`;
+  } else {
+    hist.innerHTML = state.redemptions
+      .slice()
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 20)
+      .map(
+        (rd) => `
+        <div class="redemption-row">
+          <span>${escapeHtml(rd.icon)}</span>
+          <span><strong>${escapeHtml(rd.childName)}</strong> redeemed ${escapeHtml(rd.rewardName)}</span>
+          <span class="cost">−${rd.cost} pts</span>
+          <span class="when">${timeAgo(rd.at)}</span>
+        </div>`
+      )
+      .join("");
+  }
+}
+
+function redeem(childId, rewardId) {
+  const kid = getKid(childId);
+  const reward = getReward(rewardId);
+  if (!kid || !reward) return;
+  if (balanceOf(kid) < reward.cost) {
+    toast(`${kid.name} needs ${reward.cost - balanceOf(kid)} more pts for "${reward.name}"`);
+    return;
+  }
+  kid.spent = (kid.spent || 0) + reward.cost;
+  state.redemptions.push({
+    id: uid(),
+    childId: kid.id,
+    childName: kid.name,
+    rewardName: reward.name,
+    icon: reward.icon,
+    cost: reward.cost,
+    at: Date.now(),
+  });
+  save();
+  celebrate(`${kid.name} redeemed ${reward.icon} "${reward.name}"!`);
+  renderAll();
+}
+
+function deleteReward(id) {
+  const r = getReward(id);
+  if (!r) return;
+  if (!confirm(`Delete custom reward "${r.name}"? Past redemptions stay in history.`)) return;
+  state.rewards = state.rewards.filter((x) => x.id !== id);
+  save();
+  renderStore();
+}
+
+/* ============================================================
    SCOREBOARD
    ============================================================ */
 function renderScoreboard() {
   const stat = document.getElementById("stat-row");
   const totalPts = state.children.reduce((s, k) => s + k.points, 0);
   const totalDone = state.assignments.filter((a) => a.done).length;
-  const totalPending = state.assignments.filter((a) => !a.done).length;
+  const totalSpent = state.children.reduce((s, k) => s + (k.spent || 0), 0);
   const leader = [...state.children].sort((a, b) => b.points - a.points)[0];
 
   stat.innerHTML = `
     ${statBox(totalPts, "Total points earned")}
     ${statBox(totalDone, "Chores completed")}
-    ${statBox(totalPending, "Chores pending")}
+    ${statBox(totalSpent, "Points redeemed")}
     ${statBox(leader ? `${leader.avatar}` : "—", leader ? `Leader: ${escapeHtml(leader.name)}` : "No leader yet")}
   `;
 
@@ -417,7 +572,7 @@ function renderScoreboard() {
         <span class="avatar">${k.avatar}</span>
         <div>
           <h3>${escapeHtml(k.name)}</h3>
-          <div class="sc-points">${k.points} pts · Level ${levelFor(k.points)} · ${k.completedCount} done</div>
+          <div class="sc-points">${k.points} earned · ${balanceOf(k)} to spend · Level ${levelFor(k.points)}</div>
         </div>
         <span class="rank">${rankMedal}</span>
       </div>
@@ -560,6 +715,17 @@ function emptyState(big, title, sub) {
   return `<div class="empty-state"><div class="big">${big}</div><h3>${title}</h3><p class="muted">${sub}</p></div>`;
 }
 
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "yesterday" : `${d}d ago`;
+}
+
 /* ============================================================
    Reset
    ============================================================ */
@@ -580,6 +746,7 @@ function renderAll() {
   renderChores();
   renderAssignControls();
   renderAssignments();
+  renderStore();
   renderScoreboard();
 }
 
