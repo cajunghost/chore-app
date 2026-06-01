@@ -362,20 +362,22 @@ function renderLockScreen() {
   form.hidden = !lockPickedChild;
 }
 
-document.getElementById("parent-signin").addEventListener("submit", (e) => {
-  e.preventDefault();
+function doParentSignin() {
   const inp = document.getElementById("parent-pass-input");
   signInParent(inp.value);
   inp.value = "";
-});
-
-document.getElementById("kid-signin-form").addEventListener("submit", (e) => {
-  e.preventDefault();
+}
+function doKidSignin() {
   if (!lockPickedChild) return;
   const inp = document.getElementById("kid-pass-input");
   signInChild(lockPickedChild, inp.value);
   inp.value = "";
-});
+}
+// drive from both tap (click) and Enter key (form submit)
+document.getElementById("parent-unlock-btn").addEventListener("click", doParentSignin);
+document.getElementById("parent-signin").addEventListener("submit", (e) => { e.preventDefault(); doParentSignin(); });
+document.getElementById("kid-signin-btn").addEventListener("click", doKidSignin);
+document.getElementById("kid-signin-form").addEventListener("submit", (e) => { e.preventDefault(); doKidSignin(); });
 
 /* ============================================================
    FIRST-RUN ONBOARDING (parent profile + passkey)
@@ -396,8 +398,7 @@ function setOnboardError(msg, focusId) {
   if (focusId) { const f = document.getElementById(focusId); if (f) f.focus(); }
 }
 
-document.getElementById("onboard-form").addEventListener("submit", (e) => {
-  e.preventDefault();
+function doOnboard() {
   const name = document.getElementById("onboard-name").value.trim();
   const p1 = document.getElementById("onboard-pass").value;
   const p2 = document.getElementById("onboard-pass2").value;
@@ -412,8 +413,10 @@ document.getElementById("onboard-form").addEventListener("submit", (e) => {
   save();
   toast(`Welcome, ${name}! 👋 Now add your kids and give each a passkey.`);
   refresh();
-});
-
+}
+// drive from both tap (click) and Enter key (form submit)
+document.getElementById("onboard-create").addEventListener("click", doOnboard);
+document.getElementById("onboard-form").addEventListener("submit", (e) => { e.preventDefault(); doOnboard(); });
 document.getElementById("onboard-form").addEventListener("input", () => setOnboardError(""));
 
 document.getElementById("onboard-skip").addEventListener("click", () => {

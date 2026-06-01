@@ -39,7 +39,7 @@
         <h3>I'm a parent</h3>
         <form id="parent-signin" class="lock-form">
           <input id="parent-pass-input" type="password" inputmode="numeric" placeholder="Parent passkey" autocomplete="off" />
-          <button class="btn primary" type="submit">Unlock</button>
+          <button class="btn primary" type="button" id="parent-unlock-btn">Unlock</button>
         </form>
       </div>
 
@@ -51,7 +51,7 @@
         <div id="kid-signin-list" class="kid-signin-list"></div>
         <form id="kid-signin-form" class="lock-form" style="margin-top:10px;" hidden>
           <input id="kid-pass-input" type="password" inputmode="numeric" placeholder="Your passkey" autocomplete="off" />
-          <button class="btn primary" type="submit">Sign in</button>
+          <button class="btn primary" type="button" id="kid-signin-btn">Sign in</button>
         </form>
       </div>
     </div>
@@ -80,7 +80,7 @@
           </div>
         </div>
         <p id="onboard-error" class="form-error" hidden></p>
-        <button class="btn primary" type="submit" style="width:100%;">Create parent profile</button>
+        <button class="btn primary" type="button" id="onboard-create" style="width:100%;">Create parent profile</button>
       </form>
       <button class="btn ghost" id="onboard-skip" style="margin-top:10px;">Skip &amp; explore without a passkey</button>
     </div>
