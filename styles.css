@@ -242,6 +242,89 @@ input:focus, select:focus { outline: none; border-color: var(--primary); box-sha
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
 
+/* ---------- Session bar ---------- */
+.session-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; font-size: 14px; color: #fff;
+}
+.session-bar .who { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.session-bar .sb-btn {
+  background: rgba(255,255,255,0.16); color: #fff; border: none; border-radius: 999px;
+  padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.session-bar .sb-btn:hover { background: rgba(255,255,255,0.28); }
+.session-bar .sb-note { opacity: 0.85; }
+
+/* ---------- Role-based tab/view visibility ---------- */
+.tab[data-role="child"] { display: none; }
+body[data-role="child"] .tab[data-role="child"] { display: inline-block; }
+body[data-role="child"] .tab[data-role="parent"] { display: none; }
+body[data-role="locked"] .container,
+body[data-role="locked"] #tabs,
+body[data-role="locked"] .session-bar,
+body[data-role="locked"] .app-footer { display: none; }
+
+/* ---------- Lock / sign-in screen ---------- */
+.lock-screen {
+  position: fixed; inset: 0; z-index: 100;
+  background: linear-gradient(160deg, #4f46e5 0%, #8b5cf6 60%, #ec4899 100%);
+  display: grid; place-items: center; padding: 20px; overflow-y: auto;
+}
+.lock-card {
+  background: #fff; border-radius: 20px; padding: 28px; width: min(420px, 100%);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.3); text-align: center;
+}
+.lock-logo { font-size: 46px; }
+.lock-card h2 { margin: 8px 0 4px; }
+.lock-section { margin-top: 18px; text-align: left; }
+.lock-section h3 { margin: 0 0 8px; font-size: 15px; }
+.lock-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.lock-form input { flex: 1; min-width: 140px; }
+.lock-divider { display: flex; align-items: center; gap: 10px; color: var(--ink-soft); margin: 20px 0 4px; font-size: 13px; }
+.lock-divider::before, .lock-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.kid-signin-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.kid-pick {
+  display: flex; align-items: center; gap: 8px; background: #f1f5f9; border: 2px solid transparent;
+  border-radius: 12px; padding: 8px 12px; cursor: pointer; font-weight: 700; font-size: 14px;
+}
+.kid-pick:hover { background: #e0e7ff; }
+.kid-pick.active { border-color: var(--primary); background: #e0e7ff; }
+.kid-pick .av { font-size: 20px; }
+
+/* ---------- Parent portal ---------- */
+.portal-card h3 { margin: 0 0 6px; }
+.soft-note { font-size: 12px; color: var(--ink-soft); margin: 10px 0 0; font-style: italic; }
+.check-field { flex: 0 0 auto; align-items: center; }
+.check-field input { width: 22px; height: 22px; }
+.sub-head { margin: 8px 0 12px; font-size: 16px; }
+.child-pass-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+}
+.child-pass-row:last-child { border-bottom: none; }
+.child-pass-row .cp-name { font-weight: 700; display: flex; align-items: center; gap: 6px; min-width: 130px; }
+.child-pass-row input { width: 150px; }
+.child-pass-row .cp-state { font-size: 12px; padding: 3px 9px; border-radius: 999px; font-weight: 700; }
+.child-pass-row .cp-state.set { background: #dcfce7; color: #166534; }
+.child-pass-row .cp-state.unset { background: #f1f5f9; color: var(--ink-soft); }
+
+/* ---------- My Tasks (child) ---------- */
+.mytasks-hero {
+  background: linear-gradient(135deg, var(--primary), #8b5cf6); color: #fff;
+  border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); margin-bottom: 18px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.mytasks-hero .av { font-size: 50px; }
+.mytasks-hero h2 { margin: 0; font-size: 24px; }
+.mytasks-hero .stats { display: flex; gap: 18px; margin-top: 4px; font-size: 14px; flex-wrap: wrap; }
+.mytasks-hero .stats b { font-size: 18px; }
+.mt-block { margin-bottom: 22px; }
+.mt-block h3 { margin: 0 0 10px; }
+
+/* ---------- Bonus claim button ---------- */
+.bonus-claim { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.bonus-claim select { padding: 6px 8px; font-size: 13px; }
+.repeat-pill { background: #ede9fe; color: #6d28d9; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+
 /* ---------- Footer & empty states ---------- */
 .app-footer {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;

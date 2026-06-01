@@ -77,6 +77,9 @@ function blankState() {
     assignments: [], // { id, childId, choreId, choreName, points, done, doneAt }
     rewards: PRESET_REWARDS.map((r) => ({ id: uid(), custom: false, ...r })),
     redemptions: [], // { id, childId, childName, rewardName, icon, cost, at }
+    bonusTasks: [], // { id, name, points, category, repeatable, done }
+    bonusLog: [], // { id, taskId, name, points, childId, childName, at }
+    parentPass: null, // soft hash of the parent passkey, or null when unset
   };
 }
 
@@ -87,10 +90,16 @@ function load() {
     const parsed = JSON.parse(raw);
     // basic shape guard
     if (!parsed.children || !parsed.chores || !parsed.assignments) return blankState();
-    // migrate older saves that predate the reward store
+    // migrate older saves that predate later features
     if (!parsed.rewards) parsed.rewards = PRESET_REWARDS.map((r) => ({ id: uid(), custom: false, ...r }));
     if (!parsed.redemptions) parsed.redemptions = [];
-    parsed.children.forEach((k) => { if (typeof k.spent !== "number") k.spent = 0; });
+    if (!parsed.bonusTasks) parsed.bonusTasks = [];
+    if (!parsed.bonusLog) parsed.bonusLog = [];
+    if (!("parentPass" in parsed)) parsed.parentPass = null;
+    parsed.children.forEach((k) => {
+      if (typeof k.spent !== "number") k.spent = 0;
+      if (!("pass" in k)) k.pass = null; // soft hash of this child's passkey
+    });
     return parsed;
   } catch (e) {
     console.warn("Could not load saved data, starting fresh.", e);
@@ -112,6 +121,18 @@ function uid() {
 function getKid(id) { return state.children.find((k) => k.id === id); }
 function getChore(id) { return state.chores.find((c) => c.id === id); }
 function getReward(id) { return state.rewards.find((r) => r.id === id); }
+function getBonus(id) { return state.bonusTasks.find((b) => b.id === id); }
+
+/* ---- Soft passkey hashing ----
+   This is a deterrent for a shared family device, NOT cryptographic security.
+   A short non-reversible hash keeps the raw passkey out of localStorage. */
+function hashPass(s) {
+  let h = 5381;
+  const str = "cq:" + String(s);
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return "h" + (h >>> 0).toString(36);
+}
+function checkPass(raw, hash) { return !!hash && hashPass(raw) === hash; }
 
 /* Lifetime points (kid.points) drive badges/levels/milestones and never go
    down when spending. The spendable balance is what's left after redemptions. */
@@ -126,6 +147,10 @@ function categoriesDone(kid) {
         return ch ? ch.category : a.category;
       })
   );
+  // bonus work counts toward the All-Rounder badge too
+  state.bonusLog
+    .filter((l) => l.childId === kid.id)
+    .forEach((l) => cats.add(l.category || "Bonus"));
   return cats.size;
 }
 
@@ -138,17 +163,180 @@ function earnedBadges(kid) {
 }
 
 /* ============================================================
-   View switching
+   Sessions / passkey gate (soft lock for a shared device)
    ============================================================ */
+const SESSION_KEY = "chorequest.session";
+let session = loadSession();
+let lockPickedChild = null;
+
+function loadSession() {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_KEY)) || { role: null, childId: null };
+  } catch (e) {
+    return { role: null, childId: null };
+  }
+}
+function saveSession() { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); }
+
+/* With no parent passkey set, the app is fully open (acts as parent).
+   Once a passkey exists, you must sign in as parent or child. */
+function effectiveRole() {
+  if (!state.parentPass) return "parent";
+  if (session.role === "parent") return "parent";
+  if (session.role === "child" && getKid(session.childId)) return "child";
+  return "locked";
+}
+
+function signInParent(raw) {
+  if (checkPass(raw, state.parentPass)) {
+    session = { role: "parent", childId: null };
+    saveSession();
+    toast("Welcome back! 👋");
+    refresh();
+    return true;
+  }
+  toast("Incorrect parent passkey");
+  return false;
+}
+
+function signInChild(childId, raw) {
+  const kid = getKid(childId);
+  if (kid && checkPass(raw, kid.pass)) {
+    session = { role: "child", childId };
+    saveSession();
+    toast(`Hi ${kid.name}! 🎉`);
+    refresh();
+    return true;
+  }
+  toast("Incorrect passkey");
+  return false;
+}
+
+function signOut() {
+  session = { role: null, childId: null };
+  lockPickedChild = null;
+  saveSession();
+  refresh();
+}
+
+function lockApp() {
+  if (!state.parentPass) {
+    toast("Set a parent passkey first");
+    selectView("portal");
+    return;
+  }
+  signOut();
+}
+
+/* ============================================================
+   View switching (role-aware)
+   ============================================================ */
+const CHILD_VIEWS = ["mytasks", "scoreboard"];
+
+function selectView(view) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === view));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + view));
+  if (view === "scoreboard") drawChart();
+}
+
+function ensureAllowedView(role) {
+  const active = document.querySelector(".tab.active");
+  let view = active ? active.dataset.view : null;
+  if (role === "child") {
+    if (!CHILD_VIEWS.includes(view)) view = "mytasks";
+  } else {
+    if (!view || view === "mytasks") view = "kids";
+  }
+  selectView(view);
+}
+
+function applyRole() {
+  const role = effectiveRole();
+  document.body.dataset.role = role;
+  const lock = document.getElementById("lock-screen");
+  if (role === "locked") {
+    renderLockScreen();
+    lock.hidden = false;
+    return;
+  }
+  lock.hidden = true;
+  ensureAllowedView(role);
+  renderSessionBar(role);
+}
+
 const tabs = document.getElementById("tabs");
 tabs.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");
   if (!btn) return;
-  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-  document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-  btn.classList.add("active");
-  document.getElementById("view-" + btn.dataset.view).classList.add("active");
+  selectView(btn.dataset.view);
   renderAll();
+});
+
+/* ---- Session bar ---- */
+function renderSessionBar(role) {
+  const bar = document.getElementById("session-bar");
+  if (role === "child") {
+    const k = getKid(session.childId);
+    bar.innerHTML = `
+      <span class="who">🙋 ${escapeHtml(k.name)} ${k.avatar}</span>
+      <span class="sb-note">${balanceOf(k)} pts to spend · Level ${levelFor(k.points)}</span>
+      <button class="sb-btn" id="signout-btn">Sign out</button>`;
+    bar.querySelector("#signout-btn").addEventListener("click", signOut);
+  } else if (state.parentPass) {
+    bar.innerHTML = `
+      <span class="who">👨‍👩‍👧 Parent</span>
+      <button class="sb-btn" id="lockbar-btn">🔒 Lock</button>`;
+    bar.querySelector("#lockbar-btn").addEventListener("click", lockApp);
+  } else {
+    bar.innerHTML = `<span class="sb-note">🔓 No passkey set — set one in 🔐 Parent Portal to enable child sign-in.</span>`;
+  }
+}
+
+/* ---- Lock screen ---- */
+function renderLockScreen() {
+  const listEl = document.getElementById("kid-signin-list");
+  const hint = document.getElementById("kid-signin-hint");
+  const form = document.getElementById("kid-signin-form");
+  const kidsWithPass = state.children.filter((k) => k.pass);
+  if (kidsWithPass.length === 0) {
+    listEl.innerHTML = "";
+    form.hidden = true;
+    hint.textContent = "No child passkeys yet — a parent can set them in the Parent Portal.";
+    return;
+  }
+  hint.textContent = "Tap your name, then enter your passkey.";
+  listEl.innerHTML = "";
+  kidsWithPass.forEach((k) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "kid-pick" + (lockPickedChild === k.id ? " active" : "");
+    b.innerHTML = `<span class="av">${k.avatar}</span>${escapeHtml(k.name)}`;
+    b.addEventListener("click", () => {
+      lockPickedChild = k.id;
+      renderLockScreen();
+      const inp = document.getElementById("kid-pass-input");
+      inp.placeholder = `${k.name}'s passkey`;
+      inp.value = "";
+      inp.focus();
+    });
+    listEl.appendChild(b);
+  });
+  form.hidden = !lockPickedChild;
+}
+
+document.getElementById("parent-signin").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const inp = document.getElementById("parent-pass-input");
+  signInParent(inp.value);
+  inp.value = "";
+});
+
+document.getElementById("kid-signin-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!lockPickedChild) return;
+  const inp = document.getElementById("kid-pass-input");
+  signInChild(lockPickedChild, inp.value);
+  inp.value = "";
 });
 
 /* ============================================================
@@ -387,7 +575,7 @@ function toggleTask(id, done) {
     kid.completedCount = Math.max(0, kid.completedCount - 1);
     save();
   }
-  renderAssignments();
+  refresh();
 }
 
 function removeAssignment(id) {
@@ -402,7 +590,7 @@ function removeAssignment(id) {
   }
   state.assignments = state.assignments.filter((x) => x.id !== id);
   save();
-  renderAssignments();
+  refresh();
 }
 
 /* ============================================================
@@ -531,6 +719,293 @@ function deleteReward(id) {
   state.rewards = state.rewards.filter((x) => x.id !== id);
   save();
   renderStore();
+}
+
+/* ============================================================
+   BONUS TASKS (unassigned, claimable by any child)
+   ============================================================ */
+document.getElementById("bonus-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const nameEl = document.getElementById("bonus-name");
+  const ptsEl = document.getElementById("bonus-points");
+  const catEl = document.getElementById("bonus-category");
+  const repEl = document.getElementById("bonus-repeat");
+  const name = nameEl.value.trim();
+  const points = Math.max(1, parseInt(ptsEl.value, 10) || 1);
+  if (!name) return;
+  state.bonusTasks.push({
+    id: uid(),
+    name,
+    points,
+    category: catEl.value,
+    repeatable: repEl.checked,
+    done: false,
+  });
+  nameEl.value = "";
+  ptsEl.value = 25;
+  repEl.checked = false;
+  save();
+  toast(`Added bonus task: ${name}`);
+  renderBonus();
+});
+
+function openBonusTasks() {
+  return state.bonusTasks.filter((b) => b.repeatable || !b.done);
+}
+
+/* Render the claimable bonus board into a given element.
+   `childId` (optional) means render for a specific signed-in child:
+   shows a one-tap Complete button instead of a child picker. */
+function renderBonusBoard(el, childId) {
+  const open = openBonusTasks();
+  if (open.length === 0) {
+    el.innerHTML = emptyState("🎯", "No bonus tasks", childId ? "Check back later for extra ways to earn!" : "Add a bonus task above for the kids to claim.");
+    return;
+  }
+  const kidOptions = state.children
+    .map((k) => `<option value="${k.id}">${k.avatar} ${escapeHtml(k.name)}</option>`)
+    .join("");
+  el.innerHTML = "";
+  open.forEach((b) => {
+    const item = document.createElement("div");
+    item.className = "chore-item custom";
+    let claimHtml;
+    if (childId) {
+      claimHtml = `<button class="btn good tiny" data-claim>Complete +${b.points}</button>`;
+    } else if (state.children.length) {
+      claimHtml = `<select>${kidOptions}</select><button class="btn good tiny" data-claim>Award</button>`;
+    } else {
+      claimHtml = `<span class="empty-note">Add a child first</span>`;
+    }
+    item.innerHTML = `
+      <div>
+        <div class="name">${escapeHtml(b.name)}</div>
+        <div class="meta">${escapeHtml(b.category)}${b.repeatable ? "" : " · one-time"}</div>
+      </div>
+      <div class="bonus-claim">
+        <span class="badge-pts">${b.points} pts</span>
+        ${b.repeatable ? '<span class="repeat-pill">repeatable</span>' : ""}
+        ${claimHtml}
+        ${!childId && !b.done ? '<button class="btn ghost danger tiny" data-del>Delete</button>' : ""}
+      </div>
+    `;
+    const claimBtn = item.querySelector("[data-claim]");
+    if (claimBtn) {
+      const sel = item.querySelector("select");
+      claimBtn.addEventListener("click", () => completeBonus(b.id, childId || (sel && sel.value)));
+    }
+    const delBtn = item.querySelector("[data-del]");
+    if (delBtn) delBtn.addEventListener("click", () => deleteBonus(b.id));
+    el.appendChild(item);
+  });
+}
+
+function renderBonus() {
+  renderBonusBoard(document.getElementById("bonus-board"), null);
+
+  const log = document.getElementById("bonus-log");
+  if (state.bonusLog.length === 0) {
+    log.innerHTML = `<p class="empty-note">No bonus work completed yet.</p>`;
+  } else {
+    log.innerHTML = state.bonusLog
+      .slice()
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 20)
+      .map(
+        (l) => `
+        <div class="redemption-row">
+          <span>🎯</span>
+          <span><strong>${escapeHtml(l.childName)}</strong> completed ${escapeHtml(l.name)}</span>
+          <span class="t-pts" style="color:var(--good);font-weight:700;">+${l.points} pts</span>
+          <span class="when">${timeAgo(l.at)}</span>
+        </div>`
+      )
+      .join("");
+  }
+}
+
+function completeBonus(taskId, childId) {
+  const task = getBonus(taskId);
+  const kid = getKid(childId);
+  if (!task || !kid) return;
+  if (!task.repeatable && task.done) return;
+  const before = earnedBadges(kid).map((b) => b.id);
+  kid.points += task.points;
+  kid.completedCount += 1;
+  if (!task.repeatable) task.done = true;
+  state.bonusLog.push({
+    id: uid(),
+    taskId: task.id,
+    name: task.name,
+    points: task.points,
+    category: task.category,
+    childId: kid.id,
+    childName: kid.name,
+    at: Date.now(),
+  });
+  save();
+  const newBadge = earnedBadges(kid).find((b) => !before.includes(b.id));
+  if (newBadge) celebrate(`${kid.name} earned the ${newBadge.icon} "${newBadge.name}" badge!`);
+  else celebrate(`${kid.name} earned +${task.points} bonus pts! 🎯`);
+  refresh();
+}
+
+function deleteBonus(id) {
+  const b = getBonus(id);
+  if (!b) return;
+  if (!confirm(`Delete bonus task "${b.name}"? Completed history stays intact.`)) return;
+  state.bonusTasks = state.bonusTasks.filter((x) => x.id !== id);
+  save();
+  renderBonus();
+}
+
+/* ============================================================
+   PARENT PORTAL (passkeys)
+   ============================================================ */
+document.getElementById("parent-pass-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const inp = document.getElementById("parent-pass-new");
+  const val = inp.value.trim();
+  if (val.length < 4) { toast("Passkey must be at least 4 characters"); return; }
+  state.parentPass = hashPass(val);
+  inp.value = "";
+  // setting a passkey signs the current device in as parent
+  session = { role: "parent", childId: null };
+  saveSession();
+  save();
+  toast("Parent passkey saved 🔐");
+  refresh();
+});
+
+document.getElementById("parent-pass-clear").addEventListener("click", () => {
+  if (!state.parentPass) { toast("No passkey set"); return; }
+  if (!confirm("Remove the parent passkey? The app will no longer lock and child sign-in will be disabled.")) return;
+  state.parentPass = null;
+  save();
+  toast("Parent passkey removed");
+  refresh();
+});
+
+document.getElementById("lock-now-btn").addEventListener("click", lockApp);
+
+function renderPortal() {
+  const status = document.getElementById("parent-pass-status");
+  status.textContent = state.parentPass
+    ? "A parent passkey is set. The app locks when you choose Lock or reopen it."
+    : "No parent passkey yet. Set one to lock parent controls and enable child sign-in.";
+
+  const list = document.getElementById("child-pass-list");
+  if (state.children.length === 0) {
+    list.innerHTML = `<p class="empty-note">Add children in the Kids tab first.</p>`;
+    return;
+  }
+  list.innerHTML = "";
+  state.children.forEach((k) => {
+    const row = document.createElement("div");
+    row.className = "child-pass-row";
+    row.innerHTML = `
+      <span class="cp-name">${k.avatar} ${escapeHtml(k.name)}</span>
+      <span class="cp-state ${k.pass ? "set" : "unset"}">${k.pass ? "passkey set" : "no passkey"}</span>
+      <input type="password" inputmode="numeric" placeholder="Set passkey (4+)" autocomplete="off" />
+      <button class="btn primary tiny" data-set>Save</button>
+      ${k.pass ? '<button class="btn ghost danger tiny" data-clear>Clear</button>' : ""}
+    `;
+    const input = row.querySelector("input");
+    row.querySelector("[data-set]").addEventListener("click", () => {
+      const v = input.value.trim();
+      if (v.length < 4) { toast("Passkey must be at least 4 characters"); return; }
+      k.pass = hashPass(v);
+      input.value = "";
+      save();
+      toast(`Passkey set for ${k.name}`);
+      renderPortal();
+    });
+    const clearBtn = row.querySelector("[data-clear]");
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      if (!confirm(`Clear ${k.name}'s passkey? They won't be able to sign in.`)) return;
+      k.pass = null;
+      save();
+      renderPortal();
+    });
+    list.appendChild(row);
+  });
+}
+
+/* ============================================================
+   MY TASKS (child's focused view)
+   ============================================================ */
+function renderMyTasks() {
+  const wrap = document.getElementById("mytasks-content");
+  const kid = session.role === "child" ? getKid(session.childId) : null;
+  if (!kid) {
+    wrap.innerHTML = emptyState("🙋", "Not signed in", "Sign in as a kid to see your tasks.");
+    return;
+  }
+  const tasks = state.assignments.filter((a) => a.childId === kid.id);
+  const pending = tasks.filter((t) => !t.done);
+  const done = tasks.filter((t) => t.done);
+  const earned = new Set(earnedBadges(kid).map((b) => b.id));
+
+  wrap.innerHTML = `
+    <div class="mytasks-hero">
+      <span class="av">${kid.avatar}</span>
+      <div>
+        <h2>Hi, ${escapeHtml(kid.name)}!</h2>
+        <div class="stats">
+          <span><b>${balanceOf(kid)}</b> pts to spend</span>
+          <span><b>${kid.points}</b> earned</span>
+          <span>Level <b>${levelFor(kid.points)}</b></span>
+          <span><b>${kid.completedCount}</b> done</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-block">
+      <h3>📋 My chores</h3>
+      <div class="card" id="mt-chores"></div>
+    </div>
+
+    <div class="mt-block">
+      <h3>🎯 Bonus tasks — earn extra!</h3>
+      <div class="chore-grid" id="mt-bonus"></div>
+    </div>
+
+    <div class="mt-block">
+      <h3>🏅 My badges</h3>
+      <div class="badges" id="mt-badges"></div>
+    </div>
+  `;
+
+  // chores
+  const choreWrap = wrap.querySelector("#mt-chores");
+  if (tasks.length === 0) {
+    choreWrap.innerHTML = `<p class="empty-note">No chores assigned yet. Check the bonus tasks below!</p>`;
+  } else {
+    [...pending, ...done].forEach((t) => {
+      const row = document.createElement("div");
+      row.className = "task" + (t.done ? " done" : "");
+      row.innerHTML = `
+        <input type="checkbox" ${t.done ? "checked" : ""} title="Mark complete" />
+        <span class="t-name">${escapeHtml(t.choreName)}</span>
+        <span class="t-pts">+${t.points}</span>
+      `;
+      row.querySelector("input").addEventListener("change", (ev) => toggleTask(t.id, ev.target.checked));
+      choreWrap.appendChild(row);
+    });
+  }
+
+  // bonus board (one-tap complete for this child)
+  renderBonusBoard(wrap.querySelector("#mt-bonus"), kid.id);
+
+  // badges
+  const badgesWrap = wrap.querySelector("#mt-badges");
+  BADGES.forEach((b) => {
+    const el = document.createElement("div");
+    el.className = "badge" + (earned.has(b.id) ? " earned" : "");
+    el.title = b.name;
+    el.innerHTML = `<span class="ico">${b.icon}</span><span class="name">${b.name}</span>`;
+    badgesWrap.appendChild(el);
+  });
 }
 
 /* ============================================================
@@ -730,12 +1205,14 @@ function timeAgo(ts) {
    Reset
    ============================================================ */
 document.getElementById("reset-btn").addEventListener("click", () => {
-  if (!confirm("This erases ALL profiles, chores, and scores on this device. Continue?")) return;
+  if (!confirm("This erases ALL profiles, chores, scores, passkeys, and bonus tasks on this device. Continue?")) return;
   localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(SESSION_KEY);
   state = blankState();
+  session = { role: null, childId: null };
   save();
   toast("All data reset.");
-  renderAll();
+  refresh();
 });
 
 /* ============================================================
@@ -746,8 +1223,18 @@ function renderAll() {
   renderChores();
   renderAssignControls();
   renderAssignments();
+  renderBonus();
   renderStore();
+  renderPortal();
+  renderMyTasks();
   renderScoreboard();
+}
+
+/* Re-render content, then apply the role gate (visibility, lock screen,
+   session bar). Used after any action that can change auth or points. */
+function refresh() {
+  renderAll();
+  applyRole();
 }
 
 window.addEventListener("resize", () => {
@@ -757,4 +1244,4 @@ window.addEventListener("resize", () => {
 // init
 pickedAvatar = AVATARS[0];
 renderAvatarPicker();
-renderAll();
+refresh();

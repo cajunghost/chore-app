@@ -15,16 +15,54 @@
         <p class="tagline">Turn chores into a game — all data stays on this device</p>
       </div>
     </div>
+    <div class="session-bar" id="session-bar"></div>
     <nav class="tabs" id="tabs">
-      <button class="tab active" data-view="kids">👧 Kids</button>
-      <button class="tab" data-view="chores">🧹 Chores</button>
-      <button class="tab" data-view="assign">📋 Assignments</button>
-      <button class="tab" data-view="store">🎁 Store</button>
-      <button class="tab" data-view="scoreboard">📊 Scoreboard</button>
+      <button class="tab" data-view="mytasks" data-role="child">🙋 My Tasks</button>
+      <button class="tab active" data-view="kids" data-role="parent">👧 Kids</button>
+      <button class="tab" data-view="chores" data-role="parent">🧹 Chores</button>
+      <button class="tab" data-view="assign" data-role="parent">📋 Assignments</button>
+      <button class="tab" data-view="bonus" data-role="parent">🎯 Bonus</button>
+      <button class="tab" data-view="store" data-role="parent">🎁 Store</button>
+      <button class="tab" data-view="scoreboard" data-role="all">📊 Scoreboard</button>
+      <button class="tab" data-view="portal" data-role="parent">🔐 Parent Portal</button>
     </nav>
   </header>
 
+  <!-- ========================= LOCK / SIGN-IN SCREEN ========================= -->
+  <div id="lock-screen" class="lock-screen" hidden>
+    <div class="lock-card">
+      <div class="lock-logo">🔐</div>
+      <h2>ChoreQuest is locked</h2>
+      <p class="muted">Sign in to continue. Everything stays on this device.</p>
+
+      <div class="lock-section">
+        <h3>I'm a parent</h3>
+        <form id="parent-signin" class="lock-form">
+          <input id="parent-pass-input" type="password" inputmode="numeric" placeholder="Parent passkey" autocomplete="off" />
+          <button class="btn primary" type="submit">Unlock</button>
+        </form>
+      </div>
+
+      <div class="lock-divider"><span>or</span></div>
+
+      <div class="lock-section">
+        <h3>I'm a kid</h3>
+        <p class="muted" id="kid-signin-hint">Tap your name, then enter your passkey.</p>
+        <div id="kid-signin-list" class="kid-signin-list"></div>
+        <form id="kid-signin-form" class="lock-form" style="margin-top:10px;" hidden>
+          <input id="kid-pass-input" type="password" inputmode="numeric" placeholder="Your passkey" autocomplete="off" />
+          <button class="btn primary" type="submit">Sign in</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <main class="container">
+    <!-- ========================= MY TASKS (child) ========================= -->
+    <section class="view" id="view-mytasks">
+      <div id="mytasks-content"></div>
+    </section>
+
     <!-- ========================= KIDS ========================= -->
     <section class="view active" id="view-kids">
       <div class="section-head">
@@ -140,6 +178,78 @@
         <h3 style="margin:0;">Recent Redemptions</h3>
       </div>
       <div id="redemptions-list" class="card"></div>
+    </section>
+
+    <!-- ========================= BONUS ========================= -->
+    <section class="view" id="view-bonus">
+      <div class="section-head">
+        <h2>Bonus Tasks</h2>
+        <p class="muted">Unassigned extra jobs any child can claim for bonus points — separate from their assigned chores.</p>
+      </div>
+
+      <form id="bonus-form" class="card add-form">
+        <div class="field">
+          <label for="bonus-name">Bonus task</label>
+          <input id="bonus-name" type="text" placeholder="e.g. Wash the car" maxlength="50" required />
+        </div>
+        <div class="field small">
+          <label for="bonus-points">Points</label>
+          <input id="bonus-points" type="number" min="1" max="500" value="25" required />
+        </div>
+        <div class="field">
+          <label for="bonus-category">Category</label>
+          <select id="bonus-category">
+            <option>Bonus</option>
+            <option>Bedroom</option>
+            <option>Kitchen</option>
+            <option>Bathroom</option>
+            <option>Outdoor</option>
+            <option>Pets</option>
+            <option>Laundry</option>
+            <option>School</option>
+            <option>General</option>
+          </select>
+        </div>
+        <div class="field check-field">
+          <label for="bonus-repeat">Repeatable?</label>
+          <input id="bonus-repeat" type="checkbox" />
+        </div>
+        <button class="btn primary" type="submit">+ Add Bonus Task</button>
+      </form>
+
+      <h3 class="sub-head">Open bonus tasks</h3>
+      <div id="bonus-board" class="chore-grid"></div>
+
+      <div class="section-head" style="margin-top:28px;">
+        <h3 style="margin:0;">Recently completed bonus work</h3>
+      </div>
+      <div id="bonus-log" class="card"></div>
+    </section>
+
+    <!-- ========================= PARENT PORTAL ========================= -->
+    <section class="view" id="view-portal">
+      <div class="section-head">
+        <h2>Parent Portal</h2>
+        <p class="muted">Protect parent controls with a passkey and give each child their own passkey to sign in on this shared device.</p>
+      </div>
+
+      <div class="card portal-card">
+        <h3>Parent passkey</h3>
+        <p class="muted" id="parent-pass-status"></p>
+        <form id="parent-pass-form" class="lock-form">
+          <input id="parent-pass-new" type="password" inputmode="numeric" placeholder="New parent passkey (4+ chars)" autocomplete="off" minlength="4" maxlength="32" />
+          <button class="btn primary" type="submit">Save</button>
+          <button class="btn ghost danger" type="button" id="parent-pass-clear">Remove</button>
+        </form>
+        <button class="btn ghost" id="lock-now-btn" style="margin-top:12px;">🔒 Lock the app now</button>
+        <p class="soft-note">Soft lock for a shared family device — it keeps kids out of parent controls, not a security guarantee. Forgetting it means using “Reset all data”.</p>
+      </div>
+
+      <div class="card portal-card" style="margin-top:16px;">
+        <h3>Child passkeys</h3>
+        <p class="muted">Give a child a passkey so they can sign in to their own “My Tasks” view on this device.</p>
+        <div id="child-pass-list"></div>
+      </div>
     </section>
 
     <!-- ========================= SCOREBOARD ========================= -->
