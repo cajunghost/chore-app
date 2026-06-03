@@ -276,10 +276,11 @@ function applyRole() {
   const onboard = document.getElementById("onboard-screen");
   const lock = document.getElementById("lock-screen");
 
-  // First-run: parent must create their profile + passkey (or skip) before anything else
-  if (!state.onboarded) {
+  // First-run setup, OR a child opening a share link to join a family
+  if (!state.onboarded || linkHashPending) {
     document.body.dataset.role = "onboarding";
     renderOnboarding();
+    if (linkHashPending) setOnboardMode("join");
     onboard.hidden = false;
     lock.hidden = true;
     return;
@@ -425,6 +426,180 @@ document.getElementById("onboard-skip").addEventListener("click", () => {
   toast("You can set a parent passkey anytime in 🔐 Parent Portal.");
   refresh();
 });
+
+/* ============================================================
+   DEVICE LINKING (fully local: parent → child via a link code)
+   The family snapshot travels inside a code/URL. It is obfuscated with
+   the parent's passkey hash so the child must enter the parent's name +
+   PIN to unlock it. This is soft protection for family data — not strong
+   cryptography — consistent with the rest of the app.
+   ============================================================ */
+const LINK_PREFIX = "CQ1:"; // marker to detect a successful unlock
+
+function strToBytes(s) { return new TextEncoder().encode(s); }
+function bytesToStr(b) { return new TextDecoder().decode(b); }
+function bytesToB64(bytes) {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+function xorBytes(bytes, keyStr) {
+  const k = strToBytes(keyStr || "cq");
+  const out = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ k[i % k.length];
+  return out;
+}
+
+/* Build the transferable snapshot. Includes the whole family so the child's
+   device is a working copy; child passkeys are included so they can sign in. */
+function exportSnapshot() {
+  return {
+    children: state.children,
+    chores: state.chores,
+    assignments: state.assignments,
+    rewards: state.rewards,
+    redemptions: state.redemptions,
+    bonusTasks: state.bonusTasks,
+    bonusLog: state.bonusLog,
+    parent: state.parent,
+    onboarded: true,
+  };
+}
+
+/* Encode using the parent passkey hash as the key. Returns a base64 code. */
+function encodeLink(keyHash) {
+  const wrapper = LINK_PREFIX + JSON.stringify({ name: state.parent.name, snap: exportSnapshot() });
+  return bytesToB64(xorBytes(strToBytes(wrapper), keyHash));
+}
+
+/* Decode a code with a candidate key (hash of the entered PIN). Returns the
+   wrapper object on success, or null if the key was wrong / code malformed. */
+function decodeLink(code, keyHash) {
+  try {
+    const text = bytesToStr(xorBytes(b64ToBytes(code.trim()), keyHash));
+    if (!text.startsWith(LINK_PREFIX)) return null;
+    return JSON.parse(text.slice(LINK_PREFIX.length));
+  } catch (e) {
+    return null;
+  }
+}
+
+/* Pull a raw code out of whatever the user pasted (a full share URL or the
+   bare code). */
+function extractCode(input) {
+  const s = (input || "").trim();
+  const m = s.match(/[#?&]link=([^&\s]+)/);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
+  return s;
+}
+
+/* ---- Parent side: create + show the link ---- */
+function renderLinkOutput(code) {
+  const out = document.getElementById("link-output");
+  const url = location.origin + location.pathname + "#link=" + encodeURIComponent(code);
+  document.getElementById("link-url").value = url;
+  document.getElementById("link-code").value = code;
+  out.hidden = false;
+}
+
+document.getElementById("make-link-btn").addEventListener("click", () => {
+  if (!state.parent.pass) {
+    toast("Set a parent passkey first (above) — the child uses it to unlock the link.");
+    return;
+  }
+  if (state.children.length === 0) {
+    toast("Add at least one child first.");
+    return;
+  }
+  renderLinkOutput(encodeLink(state.parent.pass));
+  toast("Family link created — share it with your child's device.");
+});
+
+function copyFrom(id, label) {
+  const el = document.getElementById(id);
+  el.select();
+  el.setSelectionRange(0, 99999);
+  const done = () => toast(`${label} copied 📋`);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(el.value).then(done, () => { try { document.execCommand("copy"); done(); } catch (e) {} });
+  } else {
+    try { document.execCommand("copy"); done(); } catch (e) {}
+  }
+}
+document.getElementById("copy-link-btn").addEventListener("click", () => copyFrom("link-url", "Link"));
+document.getElementById("copy-code-btn").addEventListener("click", () => copyFrom("link-code", "Code"));
+
+/* ---- Child side: onboarding mode toggle + join ---- */
+function setOnboardMode(mode) {
+  document.getElementById("onboard-create-mode").hidden = mode !== "create";
+  document.getElementById("onboard-join-mode").hidden = mode !== "join";
+}
+document.getElementById("show-join").addEventListener("click", () => setOnboardMode("join"));
+document.getElementById("show-create").addEventListener("click", () => { linkHashPending = false; setOnboardMode("create"); });
+
+function setJoinError(msg, focusId) {
+  const el = document.getElementById("join-error");
+  el.textContent = msg || "";
+  el.hidden = !msg;
+  if (focusId) { const f = document.getElementById(focusId); if (f) f.focus(); }
+}
+
+function doJoin() {
+  const code = extractCode(document.getElementById("join-code").value);
+  const pName = document.getElementById("join-parent-name").value.trim();
+  const pin = document.getElementById("join-pin").value;
+  if (!code) { setJoinError("Paste the link or code your parent shared.", "join-code"); return; }
+  if (!pName) { setJoinError("Enter your parent's name.", "join-parent-name"); return; }
+  if (!pin) { setJoinError("Enter your parent's passkey.", "join-pin"); return; }
+  const wrapper = decodeLink(code, hashPass(pin));
+  if (!wrapper) { setJoinError("Couldn't unlock — double-check the parent passkey and the code.", "join-pin"); return; }
+  if ((wrapper.name || "").trim().toLowerCase() !== pName.toLowerCase()) {
+    setJoinError("That parent name doesn't match this link.", "join-parent-name");
+    return;
+  }
+  if (state.onboarded && state.children.length &&
+      !confirm("This will replace the family data already on this device with the linked family. Continue?")) {
+    return;
+  }
+  setJoinError("");
+  // import the snapshot
+  const snap = wrapper.snap;
+  state = Object.assign(blankState(), snap, { onboarded: true });
+  session = { role: null, childId: null }; // land on the sign-in screen
+  linkHashPending = false;
+  saveSession();
+  save();
+  clearLinkHash();
+  toast(`Linked to ${wrapper.name}'s family! 🎉 Sign in with your passkey.`);
+  refresh();
+}
+document.getElementById("join-btn").addEventListener("click", doJoin);
+document.getElementById("join-form").addEventListener("submit", (e) => { e.preventDefault(); doJoin(); });
+document.getElementById("join-form").addEventListener("input", () => setJoinError(""));
+
+function clearLinkHash() {
+  if (location.hash.indexOf("link=") !== -1) {
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+}
+
+/* If the app was opened from a share link, jump straight to the Join screen
+   with the code prefilled. */
+let linkHashPending = false;
+function checkLinkHash() {
+  const m = location.hash.match(/link=([^&]+)/);
+  if (!m) return;
+  linkHashPending = true;
+  let code = m[1];
+  try { code = decodeURIComponent(code); } catch (e) {}
+  document.getElementById("join-code").value = code;
+}
 
 /* ============================================================
    KIDS
@@ -1359,4 +1534,5 @@ window.addEventListener("resize", () => {
 // init
 pickedAvatar = AVATARS[0];
 renderAvatarPicker();
+checkLinkHash(); // pick up #link= from a shared family link before first render
 refresh();

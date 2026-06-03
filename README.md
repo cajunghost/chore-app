@@ -29,10 +29,13 @@ badges, and milestone rewards on a live scoreboard.
 - **Bonus tasks** — parents post *unassigned* extra jobs (one-time or
   repeatable) on a Bonus board, separate from assigned chores. Any child can
   claim them for bonus points; a log tracks who completed what.
-- **First-run parent setup** — on a fresh device the app opens a welcome screen
-  where the parent creates their **profile** (name + avatar) and a **parent
-  passkey** before anything else. (You can skip to explore, then set it up later
-  in the Parent Portal.)
+- **Link a child's device (no cloud)** — a child can use ChoreQuest on their own
+  phone or tablet. In the Parent Portal the parent taps **Create family link** to
+  get a shareable link (or code) and sends it to the child. On the child's device
+  they open the link (or paste the code on the **Join** screen) and unlock it with
+  the **parent's name + passkey**. The whole family copies over directly —
+  parent → child, nothing stored online. (One-way copy: the child then tracks
+  tasks on their own device.)
 - **Parent Portal + passkeys** — edit the parent profile, manage the parent
   passkey (which locks the parent-only tabs: Kids, Chores, Assignments, Bonus,
   Store, Portal), and give each child their own passkey. On the shared family

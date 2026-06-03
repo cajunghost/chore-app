@@ -57,32 +57,62 @@
     </div>
   </div>
 
-  <!-- ========================= FIRST-RUN PARENT SETUP ========================= -->
+  <!-- ========================= FIRST-RUN / SETUP ========================= -->
   <div id="onboard-screen" class="lock-screen" hidden>
     <div class="lock-card">
-      <div class="lock-logo">👋</div>
-      <h2>Welcome to ChoreQuest</h2>
-      <p class="muted">Set up the parent account first. You'll use your passkey to manage chores; afterwards each child gets their own passkey to sign in on this device.</p>
-      <form id="onboard-form" class="onboard-form" novalidate>
-        <div class="field">
-          <label for="onboard-name">Your name</label>
-          <input id="onboard-name" type="text" placeholder="e.g. Mom, Dad, Alex" maxlength="24" required />
-        </div>
-        <div class="field">
-          <label>Pick your avatar</label>
-          <div class="avatar-picker" id="parent-avatar-picker"></div>
-        </div>
-        <div class="field">
-          <label for="onboard-pass">Create a parent passkey</label>
-          <div class="lock-form">
-            <input id="onboard-pass" type="password" inputmode="numeric" placeholder="Passkey (4+ chars)" autocomplete="off" minlength="4" maxlength="32" required />
-            <input id="onboard-pass2" type="password" inputmode="numeric" placeholder="Confirm passkey" autocomplete="off" minlength="4" maxlength="32" required />
+      <!-- Mode A: create the parent account -->
+      <div id="onboard-create-mode">
+        <div class="lock-logo">👋</div>
+        <h2>Welcome to ChoreQuest</h2>
+        <p class="muted">Set up the parent account first. You'll use your passkey to manage chores; afterwards each child gets their own passkey to sign in.</p>
+        <form id="onboard-form" class="onboard-form" novalidate>
+          <div class="field">
+            <label for="onboard-name">Your name</label>
+            <input id="onboard-name" type="text" placeholder="e.g. Mom, Dad, Alex" maxlength="24" required />
           </div>
-        </div>
-        <p id="onboard-error" class="form-error" hidden></p>
-        <button class="btn primary" type="button" id="onboard-create" style="width:100%;">Create parent profile</button>
-      </form>
-      <button class="btn ghost" id="onboard-skip" style="margin-top:10px;">Skip &amp; explore without a passkey</button>
+          <div class="field">
+            <label>Pick your avatar</label>
+            <div class="avatar-picker" id="parent-avatar-picker"></div>
+          </div>
+          <div class="field">
+            <label for="onboard-pass">Create a parent passkey</label>
+            <div class="lock-form">
+              <input id="onboard-pass" type="password" inputmode="numeric" placeholder="Passkey (4+ chars)" autocomplete="off" minlength="4" maxlength="32" required />
+              <input id="onboard-pass2" type="password" inputmode="numeric" placeholder="Confirm passkey" autocomplete="off" minlength="4" maxlength="32" required />
+            </div>
+          </div>
+          <p id="onboard-error" class="form-error" hidden></p>
+          <button class="btn primary" type="button" id="onboard-create" style="width:100%;">Create parent profile</button>
+        </form>
+        <button class="btn ghost" id="onboard-skip" style="margin-top:10px;">Skip &amp; explore without a passkey</button>
+        <div class="lock-divider"><span>or</span></div>
+        <button class="btn ghost" id="show-join" style="width:100%;">📲 I'm a kid — join my family on this device</button>
+      </div>
+
+      <!-- Mode B: child joins an existing family via parent name + PIN + link code -->
+      <div id="onboard-join-mode" hidden>
+        <div class="lock-logo">📲</div>
+        <h2>Join your family</h2>
+        <p class="muted">Paste the link your parent shared, then enter their name and passkey to unlock it.</p>
+        <form id="join-form" class="onboard-form" novalidate>
+          <div class="field">
+            <label for="join-code">Family link code</label>
+            <textarea id="join-code" rows="3" placeholder="Paste the link or code from your parent" style="resize:vertical;"></textarea>
+          </div>
+          <div class="field">
+            <label for="join-parent-name">Parent's name</label>
+            <input id="join-parent-name" type="text" placeholder="e.g. Mom" maxlength="24" />
+          </div>
+          <div class="field">
+            <label for="join-pin">Parent's passkey (PIN)</label>
+            <input id="join-pin" type="password" inputmode="numeric" placeholder="Parent passkey" autocomplete="off" maxlength="32" />
+          </div>
+          <p id="join-error" class="form-error" hidden></p>
+          <button class="btn primary" type="button" id="join-btn" style="width:100%;">Link this device</button>
+        </form>
+        <div class="lock-divider"><span>or</span></div>
+        <button class="btn ghost" id="show-create" style="width:100%;">← Back to parent setup</button>
+      </div>
     </div>
   </div>
 
@@ -291,6 +321,25 @@
         <h3>Child passkeys</h3>
         <p class="muted">Give a child a passkey so they can sign in to their own “My Tasks” view on this device.</p>
         <div id="child-pass-list"></div>
+      </div>
+
+      <div class="card portal-card" style="margin-top:16px;">
+        <h3>Link a child's device</h3>
+        <p class="muted">Let a child use ChoreQuest on their own phone or tablet. Share the link below; on their device they enter your name and passkey to unlock it. Everything transfers directly — nothing is stored online.</p>
+        <button class="btn primary" id="make-link-btn">Create family link</button>
+        <div id="link-output" hidden style="margin-top:14px;">
+          <div class="field">
+            <label for="link-url">Shareable link (send via text, email, AirDrop…)</label>
+            <textarea id="link-url" rows="2" readonly style="resize:vertical;"></textarea>
+            <button class="btn ghost tiny" id="copy-link-btn" style="margin-top:6px;">📋 Copy link</button>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label for="link-code">…or just the code (paste into the child's “Join” screen)</label>
+            <textarea id="link-code" rows="3" readonly style="resize:vertical;"></textarea>
+            <button class="btn ghost tiny" id="copy-code-btn" style="margin-top:6px;">📋 Copy code</button>
+          </div>
+          <p class="soft-note">The child unlocks it with your name + passkey. This is a one-way copy (parent → child); the child completes tasks on their own device.</p>
+        </div>
       </div>
     </section>
 
