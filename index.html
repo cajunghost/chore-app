@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ChoreQuest — Family Chore Tracker</title>
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
   <header class="app-header">
@@ -338,8 +338,23 @@
             <textarea id="link-code" rows="3" readonly style="resize:vertical;"></textarea>
             <button class="btn ghost tiny" id="copy-code-btn" style="margin-top:6px;">📋 Copy code</button>
           </div>
+          <div class="qr-wrap">
+            <label>Or scan this on the child's device</label>
+            <div id="link-qr" class="qr-box"></div>
+            <p id="link-qr-note" class="soft-note" hidden></p>
+          </div>
           <p class="soft-note">The child unlocks it with your name + passkey. This is a one-way copy (parent → child); the child completes tasks on their own device.</p>
         </div>
+      </div>
+
+      <div class="card portal-card" style="margin-top:16px;">
+        <h3>Receive a child's progress</h3>
+        <p class="muted">When a child has done tasks on their own device, they tap “Send progress” there and share the code with you. Paste it (or open their link) here to update their points on this device.</p>
+        <div class="field">
+          <textarea id="recv-progress-code" rows="3" placeholder="Paste the progress code from your child" style="resize:vertical;"></textarea>
+        </div>
+        <p id="recv-progress-error" class="form-error" hidden></p>
+        <button class="btn primary" id="recv-progress-btn">Apply progress</button>
       </div>
     </section>
 
@@ -369,6 +384,7 @@
     <button class="btn ghost danger" id="reset-btn">Reset all data</button>
   </footer>
 
-  <script src="app.js?v=2"></script>
+  <script src="qrcode.js?v=3"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

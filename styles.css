@@ -343,6 +343,18 @@ body[data-role="onboarding"] .app-footer { display: none; }
 .bonus-claim select { padding: 6px 8px; font-size: 13px; }
 .repeat-pill { background: #ede9fe; color: #6d28d9; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
 
+/* ---------- QR codes ---------- */
+.qr-wrap { margin-top: 14px; }
+.qr-wrap > label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+.qr-box { display: inline-block; background: #fff; padding: 10px; border-radius: 12px; border: 1px solid var(--line); }
+.qr-box img { display: block; width: 200px; height: 200px; image-rendering: pixelated; }
+.qr-box:empty { display: none; }
+
+/* ---------- Child progress panel (My Tasks) ---------- */
+.mt-progress { margin-top: 8px; }
+.mt-progress textarea { width: 100%; resize: vertical; margin-top: 8px; }
+.mt-progress .qr-box img { width: 170px; height: 170px; }
+
 /* ---------- Footer & empty states ---------- */
 .app-footer {
   display: flex; justify-content: space-between; align-items: center; gap: 12px;

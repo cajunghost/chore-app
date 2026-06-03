@@ -297,6 +297,16 @@ function applyRole() {
   lock.hidden = true;
   ensureAllowedView(role);
   renderSessionBar(role);
+
+  // a child's progress link was opened — route the parent to the receive box
+  if (role === "parent" && pendingProgressCode) {
+    const code = pendingProgressCode;
+    pendingProgressCode = null;
+    document.getElementById("recv-progress-code").value = code;
+    selectView("portal");
+    if (location.hash.indexOf("progress=") !== -1) history.replaceState(null, "", location.pathname + location.search);
+    toast("Progress code detected — review it in the Parent Portal and tap Apply.");
+  }
 }
 
 const tabs = document.getElementById("tabs");
@@ -456,20 +466,33 @@ function xorBytes(bytes, keyStr) {
   return out;
 }
 
-/* Build the transferable snapshot. Includes the whole family so the child's
-   device is a working copy; child passkeys are included so they can sign in. */
+/* Build the transferable snapshot. Preset chores/rewards are dropped to keep
+   the payload small enough for a QR code (the child's device regenerates them
+   on import; assignments carry their own name/points/category so nothing is
+   lost). Custom chores/rewards and all family data travel. Child passkeys are
+   included so they can sign in. */
 function exportSnapshot() {
   return {
     children: state.children,
-    chores: state.chores,
+    chores: state.chores.filter((c) => c.custom),
     assignments: state.assignments,
-    rewards: state.rewards,
+    rewards: state.rewards.filter((r) => r.custom),
     redemptions: state.redemptions,
     bonusTasks: state.bonusTasks,
     bonusLog: state.bonusLog,
     parent: state.parent,
     onboarded: true,
   };
+}
+
+/* Apply an imported snapshot to fresh state, restoring the preset libraries
+   that were stripped for size. */
+function importSnapshot(snap) {
+  const presets = blankState(); // fresh preset chores + rewards
+  const next = Object.assign(blankState(), snap, { onboarded: true });
+  next.chores = presets.chores.concat(snap.chores || []);
+  next.rewards = presets.rewards.concat(snap.rewards || []);
+  return next;
 }
 
 /* Encode using the parent passkey hash as the key. Returns a base64 code. */
@@ -499,12 +522,38 @@ function extractCode(input) {
   return s;
 }
 
+/* Render a scannable QR into `elId` for `text`. Returns true on success.
+   Falls back gracefully (hides the box, shows an optional note) when the data
+   is too large for a QR or the library is unavailable. */
+function renderQR(elId, text, noteId) {
+  const el = document.getElementById(elId);
+  const note = noteId ? document.getElementById(noteId) : null;
+  if (!el) return false;
+  el.innerHTML = "";
+  if (note) { note.hidden = true; note.textContent = ""; }
+  if (typeof qrcode === "undefined") return false;
+  try {
+    const qr = qrcode(0, "L"); // auto version, low ECC for max capacity
+    qr.addData(text);
+    qr.make();
+    el.innerHTML = qr.createImgTag(4, 8);
+    return true;
+  } catch (e) {
+    if (note) { note.hidden = false; note.textContent = "Too much data for a QR — use the link or code above instead."; }
+    return false;
+  }
+}
+
 /* ---- Parent side: create + show the link ---- */
+function linkUrlFor(code) {
+  return location.origin + location.pathname + "#link=" + encodeURIComponent(code);
+}
 function renderLinkOutput(code) {
   const out = document.getElementById("link-output");
-  const url = location.origin + location.pathname + "#link=" + encodeURIComponent(code);
+  const url = linkUrlFor(code);
   document.getElementById("link-url").value = url;
   document.getElementById("link-code").value = code;
+  renderQR("link-qr", url, "link-qr-note");
   out.hidden = false;
 }
 
@@ -568,9 +617,8 @@ function doJoin() {
     return;
   }
   setJoinError("");
-  // import the snapshot
-  const snap = wrapper.snap;
-  state = Object.assign(blankState(), snap, { onboarded: true });
+  // import the snapshot (restores preset libraries stripped for size)
+  state = importSnapshot(wrapper.snap);
   session = { role: null, childId: null }; // land on the sign-in screen
   linkHashPending = false;
   saveSession();
@@ -592,14 +640,115 @@ function clearLinkHash() {
 /* If the app was opened from a share link, jump straight to the Join screen
    with the code prefilled. */
 let linkHashPending = false;
+let pendingProgressCode = null;
 function checkLinkHash() {
-  const m = location.hash.match(/link=([^&]+)/);
-  if (!m) return;
-  linkHashPending = true;
-  let code = m[1];
-  try { code = decodeURIComponent(code); } catch (e) {}
-  document.getElementById("join-code").value = code;
+  const lm = location.hash.match(/link=([^&]+)/);
+  if (lm) {
+    linkHashPending = true;
+    let code = lm[1];
+    try { code = decodeURIComponent(code); } catch (e) {}
+    document.getElementById("join-code").value = code;
+    return;
+  }
+  const pm = location.hash.match(/progress=([^&]+)/);
+  if (pm) {
+    let code = pm[1];
+    try { code = decodeURIComponent(code); } catch (e) {}
+    pendingProgressCode = code; // routed to the parent once they're signed in
+  }
 }
+
+/* ============================================================
+   PROGRESS SYNC-BACK (child → parent)
+   The child's device builds a small code with that child's completed work;
+   the parent pastes it (or opens the link) to merge it into the master copy.
+   Obfuscated with the parent passkey hash, same as the family link.
+   ============================================================ */
+const PROGRESS_PREFIX = "CQP1:";
+
+function buildProgress(childId) {
+  const kid = getKid(childId);
+  if (!kid) return null;
+  const payload = {
+    cid: kid.id,
+    cname: kid.name,
+    doneAssignments: state.assignments.filter((a) => a.childId === kid.id && a.done).map((a) => a.id),
+    doneBonusTasks: state.bonusTasks.filter((b) => b.done).map((b) => b.id),
+    bonusLog: state.bonusLog.filter((l) => l.childId === kid.id),
+    redemptions: state.redemptions.filter((r) => r.childId === kid.id),
+  };
+  return bytesToB64(xorBytes(strToBytes(PROGRESS_PREFIX + JSON.stringify(payload)), state.parent.pass || "cq"));
+}
+
+function decodeProgress(code, keyHash) {
+  try {
+    const text = bytesToStr(xorBytes(b64ToBytes(extractProgressCode(code)), keyHash));
+    if (!text.startsWith(PROGRESS_PREFIX)) return null;
+    return JSON.parse(text.slice(PROGRESS_PREFIX.length));
+  } catch (e) {
+    return null;
+  }
+}
+
+function extractProgressCode(input) {
+  const s = (input || "").trim();
+  const m = s.match(/[#?&]progress=([^&\s]+)/);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
+  return s;
+}
+
+/* Recompute a child's points/completedCount/spent from authoritative records,
+   so applying the same progress code twice is idempotent (no double counting). */
+function recomputeChild(kid) {
+  const asgPts = state.assignments
+    .filter((a) => a.childId === kid.id && a.done)
+    .reduce((s, a) => s + a.points, 0);
+  const asgCount = state.assignments.filter((a) => a.childId === kid.id && a.done).length;
+  const bonusPts = state.bonusLog.filter((l) => l.childId === kid.id).reduce((s, l) => s + l.points, 0);
+  const bonusCount = state.bonusLog.filter((l) => l.childId === kid.id).length;
+  kid.points = asgPts + bonusPts;
+  kid.completedCount = asgCount + bonusCount;
+  kid.spent = state.redemptions.filter((r) => r.childId === kid.id).reduce((s, r) => s + r.cost, 0);
+}
+
+function applyProgress(code) {
+  const data = decodeProgress(code, state.parent.pass || "cq");
+  if (!data) return { ok: false, msg: "Couldn't read that progress code — make sure it's from your family and copied in full." };
+  const kid = getKid(data.cid);
+  if (!kid) return { ok: false, msg: "That code is for a child who isn't on this device." };
+  // mark the child's completed chores done (OR — never un-complete)
+  (data.doneAssignments || []).forEach((id) => {
+    const a = state.assignments.find((x) => x.id === id && x.childId === kid.id);
+    if (a && !a.done) { a.done = true; a.doneAt = a.doneAt || Date.now(); }
+  });
+  (data.doneBonusTasks || []).forEach((id) => {
+    const b = getBonus(id);
+    if (b) b.done = true;
+  });
+  // merge logs, de-duping by id
+  const haveBonus = new Set(state.bonusLog.map((l) => l.id));
+  (data.bonusLog || []).forEach((l) => { if (!haveBonus.has(l.id)) state.bonusLog.push(l); });
+  const haveRedem = new Set(state.redemptions.map((r) => r.id));
+  (data.redemptions || []).forEach((r) => { if (!haveRedem.has(r.id)) state.redemptions.push(r); });
+  recomputeChild(kid);
+  save();
+  return { ok: true, msg: `Updated ${kid.name}: ${kid.points} pts, ${kid.completedCount} done.` };
+}
+
+/* Parent: receive-progress box */
+document.getElementById("recv-progress-btn").addEventListener("click", () => {
+  const ta = document.getElementById("recv-progress-code");
+  const errEl = document.getElementById("recv-progress-error");
+  const res = applyProgress(ta.value);
+  if (!res.ok) { errEl.textContent = res.msg; errEl.hidden = false; return; }
+  errEl.hidden = true;
+  ta.value = "";
+  toast("✅ " + res.msg);
+  refresh();
+});
+document.getElementById("recv-progress-code").addEventListener("input", () => {
+  document.getElementById("recv-progress-error").hidden = true;
+});
 
 /* ============================================================
    KIDS
@@ -1260,6 +1409,21 @@ function renderMyTasks() {
       <h3>🏅 My badges</h3>
       <div class="badges" id="mt-badges"></div>
     </div>
+
+    <div class="mt-block mt-progress">
+      <h3>📤 Send my progress to a parent</h3>
+      <p class="muted">Finished some chores on this device? Send your progress so it counts on your parent's device.</p>
+      <button class="btn primary" id="mt-send-progress">Create my progress code</button>
+      <div id="mt-progress-out" hidden>
+        <textarea id="mt-progress-code" rows="3" readonly></textarea>
+        <button class="btn ghost tiny" id="mt-copy-progress" style="margin-top:6px;">📋 Copy</button>
+        <div class="qr-wrap">
+          <label>Or let a parent scan this</label>
+          <div id="mt-progress-qr" class="qr-box"></div>
+          <p id="mt-progress-qr-note" class="soft-note" hidden></p>
+        </div>
+      </div>
+    </div>
   `;
 
   // chores
@@ -1292,6 +1456,18 @@ function renderMyTasks() {
     el.innerHTML = `<span class="ico">${b.icon}</span><span class="name">${b.name}</span>`;
     badgesWrap.appendChild(el);
   });
+
+  // send-progress
+  wrap.querySelector("#mt-send-progress").addEventListener("click", () => {
+    const code = buildProgress(kid.id);
+    if (!code) return;
+    wrap.querySelector("#mt-progress-code").value = code;
+    const url = location.origin + location.pathname + "#progress=" + encodeURIComponent(code);
+    renderQR("mt-progress-qr", url, "mt-progress-qr-note");
+    wrap.querySelector("#mt-progress-out").hidden = false;
+    toast("Progress code ready — send it to your parent.");
+  });
+  wrap.querySelector("#mt-copy-progress").addEventListener("click", () => copyFrom("mt-progress-code", "Progress code"));
 }
 
 /* ============================================================

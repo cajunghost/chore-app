@@ -31,11 +31,21 @@ badges, and milestone rewards on a live scoreboard.
   claim them for bonus points; a log tracks who completed what.
 - **Link a child's device (no cloud)** — a child can use ChoreQuest on their own
   phone or tablet. In the Parent Portal the parent taps **Create family link** to
-  get a shareable link (or code) and sends it to the child. On the child's device
-  they open the link (or paste the code on the **Join** screen) and unlock it with
-  the **parent's name + passkey**. The whole family copies over directly —
-  parent → child, nothing stored online. (One-way copy: the child then tracks
-  tasks on their own device.)
+  get a shareable link, code, **or QR code** and sends/shows it to the child. On
+  the child's device they open the link (or paste the code / scan the QR on the
+  **Join** screen) and unlock it with the **parent's name + passkey**. The whole
+  family copies over directly — parent → child, nothing stored online.
+- **Progress sync-back (child → parent)** — after doing chores on their own
+  device, the child taps **“Create my progress code”** in My Tasks to get a code
+  (or QR). The parent pastes it (or opens/scans it) under **Receive a child's
+  progress** in the Parent Portal to merge the child's points, completions, and
+  redemptions into the master copy. Merging recomputes from authoritative records,
+  so applying the same code twice never double-counts. Still 100% local — the
+  code/QR carries the data directly, nothing is stored online.
+
+> QR codes are generated locally with a vendored, dependency-free library
+> (`qrcode.js`); no network or external service is used. Very large families may
+> exceed QR capacity, in which case the app falls back to the link/code.
 - **Parent Portal + passkeys** — edit the parent profile, manage the parent
   passkey (which locks the parent-only tabs: Kids, Chores, Assignments, Bonus,
   Store, Portal), and give each child their own passkey. On the shared family
